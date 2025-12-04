@@ -3,43 +3,50 @@ CREATE TYPE "StatusMaterial" AS ENUM ('HABIS', 'AVAILABLE');
 
 -- CreateTable
 CREATE TABLE "User" (
-    "id" INTEGER NOT NULL,
+    "id" SERIAL NOT NULL,
     "unique_id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "roleId" INTEGER NOT NULL DEFAULT 1,
     "name" VARCHAR(255) NOT NULL,
+    "address" TEXT,
     "phone" INTEGER,
     "password" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3)
+    "deletedAt" TIMESTAMP(3),
+
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Role" (
-    "id" INTEGER NOT NULL,
+    "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3)
+    "deletedAt" TIMESTAMP(3),
+
+    CONSTRAINT "Role_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Materials" (
-    "id" INTEGER NOT NULL,
+    "id" SERIAL NOT NULL,
     "unique_id" TEXT NOT NULL,
     "status" "StatusMaterial" NOT NULL,
     "description" TEXT NOT NULL,
     "name" VARCHAR(255) NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3)
+    "deletedAt" TIMESTAMP(3),
+
+    CONSTRAINT "Materials_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "ContactForm" (
-    "id" INTEGER NOT NULL,
+    "id" SERIAL NOT NULL,
     "unique_id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "email" TEXT NOT NULL,
@@ -48,12 +55,14 @@ CREATE TABLE "ContactForm" (
     "Message" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3)
+    "deletedAt" TIMESTAMP(3),
+
+    CONSTRAINT "ContactForm_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "ResponseContact" (
-    "id" INTEGER NOT NULL,
+    "id" SERIAL NOT NULL,
     "unique_id" TEXT NOT NULL,
     "contacatId" INTEGER NOT NULL,
     "RespondenId" INTEGER NOT NULL,
@@ -64,11 +73,10 @@ CREATE TABLE "ResponseContact" (
     "Message" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3)
-);
+    "deletedAt" TIMESTAMP(3),
 
--- CreateIndex
-CREATE UNIQUE INDEX "User_id_key" ON "User"("id");
+    CONSTRAINT "ResponseContact_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_unique_id_key" ON "User"("unique_id");
@@ -77,22 +85,10 @@ CREATE UNIQUE INDEX "User_unique_id_key" ON "User"("unique_id");
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Role_id_key" ON "Role"("id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Materials_id_key" ON "Materials"("id");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Materials_unique_id_key" ON "Materials"("unique_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ContactForm_id_key" ON "ContactForm"("id");
-
--- CreateIndex
 CREATE UNIQUE INDEX "ContactForm_unique_id_key" ON "ContactForm"("unique_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "ResponseContact_id_key" ON "ResponseContact"("id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ResponseContact_unique_id_key" ON "ResponseContact"("unique_id");
