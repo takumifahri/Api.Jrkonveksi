@@ -70,7 +70,7 @@ model ContactForm {
   unique_id         String               @unique
   name  String 
   email             String   
-  phone             Int                  
+  phone             String                  
   title             String               @db.VarChar(255)
   Message           String  
 
@@ -92,7 +92,7 @@ model ResponseContact {
           
   name              String 
   email             String   
-  phone             Int                  
+  phone             String                  
   title             String               @db.VarChar(255)
   Message           String  
 

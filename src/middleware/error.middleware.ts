@@ -1,7 +1,7 @@
 // src/middlewares/error.middleware.ts
 import type { Request, Response, NextFunction } from 'express';
 import HttpException from '../utils/HttpExecption.js';
-import config from '../config/appConfig.js';
+import config from '../config/config.js';
 
 export const errorMiddleware = (
     err: HttpException, 

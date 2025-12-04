@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import AuthService from "../../services/auth/login.service.js";
+import AuthService from "../../services/auth/auth.service.js";
 import logger from "../../utils/logger.js";
 
 // Helper untuk set cookie
