@@ -1,0 +1,41 @@
+# Modules Dependency
+node_modules
+
+# docker
+Dockerfile
+docker-compose.yml
+
+# env
+.env
+
+# prisma
+
+/generated/prisma# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+
+# Prisma generated client
+generated/
+/generated
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

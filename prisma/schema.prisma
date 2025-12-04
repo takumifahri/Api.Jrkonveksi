@@ -1,0 +1,104 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                Int                  @unique
+  unique_id         String               @unique @default(cuid())
+  email             String               @unique
+  roleId            Int                  @default(1)
+  name              String               @db.VarChar(255)
+  phone             Int?                 
+  password String
+
+ // FK Relations
+  role              Role                 @relation(fields: [roleId], references: [id])
+
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  deletedAt         DateTime?
+
+  ResponseContact   ResponseContact[]
+
+}
+
+model Role {
+  id    Int   @unique
+  name  String 
+  description  String 
+  
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  deletedAt         DateTime?
+  
+  // Relations
+  users       User[]
+
+}
+
+enum StatusMaterial {
+  HABIS
+  AVAILABLE
+}
+
+model Materials {
+  id                Int                  @unique
+  unique_id         String               @unique
+  status            StatusMaterial
+  description       String 
+  name              String               @db.VarChar(255)
+
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  deletedAt         DateTime? 
+}
+
+model ContactForm {
+  id                Int                  @unique
+  unique_id         String               @unique
+  name  String 
+  email             String   
+  phone             Int                  
+  title             String               @db.VarChar(255)
+  Message           String  
+
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  deletedAt         DateTime? 
+
+  // Relations
+  response          ResponseContact[]
+
+}
+
+
+model ResponseContact {
+  id                Int                  @unique
+  unique_id         String               @unique
+  contacatId        Int        
+  RespondenId       Int        
+          
+  name              String 
+  email             String   
+  phone             Int                  
+  title             String               @db.VarChar(255)
+  Message           String  
+
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  deletedAt         DateTime? 
+
+  ContactForm       ContactForm          @relation(fields: [contacatId], references: [id])
+  user              User                 @relation(fields: [RespondenId], references: [id])
+}
