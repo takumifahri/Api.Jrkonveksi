@@ -4,11 +4,16 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "prisma": "prisma",
-    "prisma:migrate": "prisma migrate dev",
+    "dev": "tsx src/server.ts",
+    "dev:watch": "nodemon --exec tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
-    "prisma:studio": "prisma studio"
+    "prisma:migrate:reset": "prisma migrate reset",
+    "prisma:migrate:fresh": "prisma migrate reset --force --skip-seed",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",
@@ -34,6 +39,7 @@
     "prettier": "^3.7.4",
     "prisma": "^7.1.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }
