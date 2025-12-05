@@ -14,7 +14,7 @@ datasource db {
 }
 
 model User {
-    id                Int                @id @default(autoincrement())
+  id                Int                @id @default(autoincrement())
   unique_id         String               @unique @default(cuid())
   email             String               @unique
   roleId            Int                  @default(1)
@@ -23,7 +23,12 @@ model User {
   phone             String?                 
   password          String
 
- // FK Relations
+  // Security 
+  login_attempt     Int?                @default(0)
+  last_login        DateTime?            
+  token_version Int     @default(0)   // ← new field
+  
+  // FK Relations
   role              Role                 @relation(fields: [roleId], references: [id])
 
   createdAt         DateTime             @default(now())

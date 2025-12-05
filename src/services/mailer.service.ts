@@ -61,6 +61,29 @@ class MailerService {
             throw new Error('Failed to send email due to server error.'); 
         }
     }
+
+    static async sendWarningEmail(to: string, subject: string, message: string): Promise<void> {
+        const mailOptions: MailOptions = {
+            to,
+            subject,
+            text: message,
+            html: `
+            <div style="font-family: Arial, sans-serif; color: #333;">
+                <h2 style="color: #d9534f;">Peringatan Keamanan Akun</h2>
+                <p>Halo,</p>
+                <p>Kami mendeteksi adanya percobaan masuk ke akun Anda dengan beberapa kali memasukkan email.</p>
+                <p><strong>Detail:</strong></p>
+                <blockquote style="background: #f9f9f9; border-left: 4px solid #d9534f; margin: 10px 0; padding: 10px;">
+                ${message}
+                </blockquote>
+                <p>Jika ini bukan Anda, harap segera amankan akun Anda dan ubah kata sandi.</p>
+                <p>Terima kasih,<br/>Tim Keamanan Jrkonveksi</p>
+            </div>
+            `
+        };
+        await new MailerService().sendMail(mailOptions);
+    }
+
 }
 
 export default MailerService;

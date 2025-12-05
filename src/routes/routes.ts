@@ -1,5 +1,6 @@
 import type { Application } from 'express';
 import auth_router from "./auth/auth.routes.js";
+import contact_router from './user/contact.routes.js';
 // import router lain di sini
 // import user_router from "./user/user.routes.js";
 // import material_router from "./material/material.routes.js";
@@ -14,6 +15,10 @@ const routes: Record<string, Route> = {
     auth: {
         path: '/auth',
         router: auth_router,
+    },
+    contact: {
+        path: '/contacts',
+        router: contact_router
     },
     // Tambahkan route lain di sini
     // user: {

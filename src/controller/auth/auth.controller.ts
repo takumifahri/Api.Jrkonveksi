@@ -1,21 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import AuthService from "../../services/auth/auth.service.js";
 import logger from "../../utils/logger.js";
+import { setAuthCookie } from "../../utils/password.utils.js";
 
-// Helper untuk set cookie
-const setAuthCookie = (res: Response, token: string) => {
-    const isProduction = process.env.NODE_ENV === 'production';
-    
-    res.cookie('accessToken', token, {
-        httpOnly: true, // ✅ Prevent XSS attacks
-        secure: isProduction, // ✅ HTTPS only in production
-        sameSite: isProduction ? 'strict' : 'lax', // ✅ CSRF protection
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        path: '/',
-    });
-};
-
-export const login = async (req: Request, res: Response, next: NextFunction) => {
+const login = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { email, password } = req.body;
         const result = await AuthService.login(email, password);
@@ -28,6 +16,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
         
         res.json({
             ...responseWithoutToken,
+            token: token,
             message: 'Login successful'
         });
     } catch (err) {
@@ -35,7 +24,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     }
 };
 
-export const register = async (req: Request, res: Response, next: NextFunction) => {
+const register = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { email, password, name, address, phone } = req.body;
         const result = await AuthService.register(email, password, name, address, phone);
@@ -45,7 +34,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     }
 };
 
-export const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
+const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
     try {
         // ✅ Ambil token dari cookie dulu, fallback ke Authorization header
         const token = req.cookies.accessToken || req.headers.authorization?.split(" ")[1];
@@ -71,29 +60,36 @@ export const verifyToken = async (req: Request, res: Response, next: NextFunctio
         next(err);
     }
 };
-
-export const logout = async (req: Request, res: Response, next: NextFunction) => {
+const logout = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        // ✅ Clear cookie
+        // ✅ Ambil token dari cookie dulu, fallback ke Authorization header
+        const token = req.cookies.accessToken || req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(400).json({
+                status: 'error',
+                message: "No token provided"
+            });
+        }
+
+        await AuthService.logout(token);
+
+        // Hapus cookie
         res.clearCookie('accessToken', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-            path: '/',
+            sameSite: 'strict',
         });
-        
-        logger.info('User logged out');
-        
+
         res.json({
             status: 'success',
-            message: 'Logged out successfully'
+            message: 'Logout successful'
         });
     } catch (err) {
         next(err);
     }
 };
 
-export const refreshToken = async (req: Request, res: Response, next: NextFunction) => {
+const refreshToken = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const token = req.cookies.accessToken;
         
@@ -123,3 +119,13 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
         next(err);
     }
 };
+
+const authController = {
+    login,
+    register,
+    verifyToken,
+    logout,
+    refreshToken
+};
+
+export default authController;

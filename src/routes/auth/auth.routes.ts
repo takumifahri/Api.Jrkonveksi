@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { login, register, logout, verifyToken, refreshToken } from '../../controller/auth/auth.controller.js';
+import authController from '../../controller/auth/auth.controller.js';
 import { validateLogin, validateRegister } from '../../middleware/validaator/auth.validator.js';
 const router = Router();
 
@@ -141,7 +141,7 @@ const router = Router();
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/register', validateRegister, register);
+router.post('/register', validateRegister, authController.register);
 
 /**
  * @swagger
@@ -169,7 +169,7 @@ router.post('/register', validateRegister, register);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/login', validateLogin, login);
+router.post('/login', validateLogin, authController.login);
 
 /**
  * @swagger
@@ -189,7 +189,7 @@ router.post('/login', validateLogin, login);
  *                   type: string
  *                   example: Logged out successfully
  */
-router.post('/logout', logout);
+router.post('/logout', authController.logout);
 
 /**
  * @swagger
@@ -216,7 +216,7 @@ router.post('/logout', logout);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/verify', verifyToken);
+router.get('/verify', authController.verifyToken);
 
 /**
  * @swagger
@@ -243,7 +243,7 @@ router.get('/verify', verifyToken);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/me', verifyToken);
+router.get('/me', authController.verifyToken);
 
 /**
  * @swagger
@@ -269,6 +269,6 @@ router.get('/me', verifyToken);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/refresh', refreshToken);
+router.post('/refresh', authController.refreshToken);
 
 export default router;

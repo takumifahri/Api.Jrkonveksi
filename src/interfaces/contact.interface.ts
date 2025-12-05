@@ -21,7 +21,7 @@ export interface ResponseContact {
 }
 
 export interface replyRequest {
-    contactId: string;
+    contactId: number;
     replyMessage: string;
     replyBy: number;
 }
@@ -41,6 +41,6 @@ export interface ResponseReplyContact {
 export interface IContactService {
     submitContactForm(request: ContactFormRequest): Promise<ContactFormResponse>;
     getAllContacts(): Promise<ResponseContact[]>;
-    getIdContact(contactId: string): Promise<ResponseContact>;
-    replyToContact(contactId: string, replyMessage: string, replyBy: number): Promise<ResponseReplyContact>;
+    getIdContact(contactId: number): Promise<ResponseContact>;
+    replyToContact(contactId: number, replyMessage: string, replyBy: number): Promise<ResponseReplyContact>;
 }

@@ -5,23 +5,36 @@ import JWTUtils from "../../utils/jwt.js";
 import logger from "../../utils/logger.js";
 import * as jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
+import { UserRepository } from "../../repository/auth.repository.js";
+import { PasswordUtils, setAuthCookie } from "../../utils/password.utils.js";
+import MailerService from "../mailer.service.js";
+
 class AuthService implements IAuthService {
+    private userRepository = new UserRepository();
     async login(email: string, passwordPlain: string): Promise<LoginResponse> {
         logger.debug('Login attempt', { email });
 
-        const user = await prisma.user.findUnique({
-            where: { email },
-            include: { role: true }
-        });
+        const user = await this.userRepository.findByEmail(email);
 
         if (!user) {
             logger.warn('Login failed: user not found', { email });
             throw new HttpException(401, "Invalid email or password");
         }
 
-        const isPasswordValid = await JWTUtils.verifyPassword(user.password, passwordPlain);
+        // cek security jika ada yg mencoba masuk dengan password yang salah berkali kali dan send email via mailer.service
+        const loginAttempts = await this.userRepository.getLoginAttempts(email);
+        if (loginAttempts > 0 && loginAttempts % 5 === 0) {
+            // Kirim email notifikasi setiap kelipatan 5
+            await MailerService.sendWarningEmail(email, 'Peringatan Keamanan Akun', `Kami mendeteksi ${loginAttempts} percobaan login yang gagal.`);
+        }
+
+        const isPasswordValid = await PasswordUtils.verifyPassword(user.password, passwordPlain);
         if (!isPasswordValid) {
             logger.warn('Login failed: invalid password', { email });
+            await prisma.user.update({
+                where: { email },
+                data: { login_attempt: { increment: 1 } }
+            });
             throw new HttpException(401, "Invalid email or password");
         }
 
@@ -29,7 +42,13 @@ class AuthService implements IAuthService {
         const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
 
         const token = JWTUtils.generateToken(
-            { userId: user.id, role: user.role.name },
+            {
+                userId: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role.name,
+                tokenVersion: user.token_version
+            },
             secret,
             expiresIn as jwt.SignOptions['expiresIn']
         );
@@ -39,12 +58,12 @@ class AuthService implements IAuthService {
             email: user.email,
             role: user.role.name
         });
-        const userUUID = `USR-${uuidv4()}`;
+
         return {
             token, // ✅ Masih return token untuk flexibility
             user: {
                 id: user.id,
-                uuid: userUUID,
+                uuid: user.unique_id,
                 email: user.email,
                 name: user.name,
                 address: user.address,
@@ -63,16 +82,16 @@ class AuthService implements IAuthService {
         try {
             const secret = process.env.JWT_SECRET || 'your-secret-key';
             const payload = JWTUtils.verifyToken(token, secret) as any;
+            if (!payload?.userId) return null;
 
-            if (!payload || !payload.userId) return null;
-
-            const user = await prisma.user.findUnique({
-                where: { id: payload.userId },
-                include: { role: true }
-            });
-
+            const user = await prisma.user.findUnique({ where: { id: payload.userId }, include: { role: true } });
             if (!user) return null;
-            
+
+            // Check token version
+            if (payload.tokenVersion !== user.token_version) {
+                return null; // token revoked/old
+            }
+
             return {
                 user: {
                     id: user.id,
@@ -101,15 +120,14 @@ class AuthService implements IAuthService {
         address?: string | null,
         phone?: string | null
     ): Promise<RegisterResponse> {
-        const existingUser = await prisma.user.findUnique({
-            where: { email }
-        });
 
+        // Cari existing user berdasarkan email
+        const existingUser = await this.userRepository.findByEmail(email);
         if (existingUser) {
             throw new HttpException(409, 'Email already registered');
         }
 
-        const hashedPassword = await JWTUtils.hashPassword(passwordPlain);
+        const hashedPassword = await PasswordUtils.hashPassword(passwordPlain);
 
         const userData: any = {
             email,
@@ -126,35 +144,20 @@ class AuthService implements IAuthService {
             userData.phone = phone;
         }
 
-        const user = await prisma.user.create({
-            data: userData,
-            select: {
-                id: true,
-                unique_id: true,
-                email: true,
-                name: true,
-                address: true,
-                phone: true,
-                role: {
-                    select: {
-                        id: true,
-                        name: true
-                    }
-                },
-                createdAt: true,
-                updatedAt: true
-            }
-        });
+        const user = await this.userRepository.createUser(userData);
+        if (!user) {
+            throw new HttpException(500, 'Failed to create user');
+        }
 
         logger.info('User registered successfully', {
             userId: user.id,
             email: user.email
         });
-
+        const userUUID = `USR-${uuidv4()}`;
         return {
             user: {
                 id: user.id,
-                uuid: user.unique_id,
+                uuid: userUUID,
                 email: user.email,
                 name: user.name,
                 address: user.address,
@@ -167,6 +170,19 @@ class AuthService implements IAuthService {
                 updatedAt: user.updatedAt
             }
         };
+    }
+
+    public async logout(token: string): Promise<void> {
+        if (!token) {
+            throw new HttpException(400, "No token provided");
+        }
+        const payload = JWTUtils.verifyToken(token, process.env.JWT_SECRET || 'your-secret-key') as any;
+        if (payload?.userId) {
+            await prisma.user.update({
+                where: { id: payload.userId },
+                data: { login_attempt: 0, token_version: { increment: 1 }, last_login: new Date() }
+            });
+        }
     }
 }
 
