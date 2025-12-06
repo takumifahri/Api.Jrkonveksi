@@ -1,4 +1,3 @@
-// Login
 export interface LoginRequest {
     email: string;
     password: string;
@@ -16,7 +15,7 @@ export interface UserResponse {
     email: string;
     phone?: string | null;
     address?: string | null;
-    role : {
+    role: {
         id: number;
         name: string;
     };
@@ -24,8 +23,6 @@ export interface UserResponse {
     updatedAt: Date;
 }
 
-
-// Register
 export interface RegisterRequest {
     name: string;
     email: string;
@@ -35,16 +32,25 @@ export interface RegisterRequest {
 }
 
 export interface RegisterResponse {
+    verificationId: number;
+    message: string;
+}
+
+export interface VerifyOTPRequest {
+    verificationId: number;
+    otp: string;
+}
+
+export interface VerifyOTPResponse {
     user: UserResponse;
+    // token: string;
 }
 
 export interface IAuthService {
-    // Kontrak untuk pendaftaran pengguna baru
-    register(email: string, passwordPlain: string, name: string, address?: string | null, phone?: string | null): Promise<RegisterResponse>;
-
-    // Kontrak untuk login pengguna
+    register(data: RegisterRequest): Promise<RegisterResponse>;
+    verifyOTP(verificationId: number, otp: string): Promise<VerifyOTPResponse>;
+    resendOTP(email: string): Promise<{ message: string }>;
     login(email: string, passwordPlain: string): Promise<LoginResponse>;
-
-    // Kontrak untuk memverifikasi token dan mendapatkan data pengguna
     verifyToken(token: string): Promise<{ user: UserResponse } | null>;
+    logout(token: string): Promise<void>;
 }

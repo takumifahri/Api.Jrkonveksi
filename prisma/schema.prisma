@@ -14,29 +14,51 @@ datasource db {
 }
 
 model User {
-  id                Int                @id @default(autoincrement())
-  unique_id         String               @unique @default(cuid())
-  email             String               @unique
-  roleId            Int                  @default(1)
-  name              String               @db.VarChar(255)
-  address           String?              
-  phone             String?                 
-  password          String
-
-  // Security 
-  login_attempt     Int?                @default(0)
-  last_login        DateTime?            
-  token_version Int     @default(0)   // ← new field
+  id            Int      @id @default(autoincrement())
+  unique_id     String   @unique @default(cuid())
+  email         String   @unique
+  password      String
+  name          String
+  roleId        Int
+  phone         String?
+  address       String?
   
-  // FK Relations
-  role              Role                 @relation(fields: [roleId], references: [id])
+  // otp verified
+  is_verified   Boolean  @default(false)
+  
+  // Security
+  login_attempt Int      @default(0)
+  token_version Int      @default(0)
+  last_login    DateTime?
 
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  deletedAt         DateTime?
-
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  role          Role     @relation(fields: [roleId], references: [id])
+  
+  @@map("users")
+  
   ResponseContact   ResponseContact[]
+}
 
+model OTP_Verification {
+  id              Int      @id @default(autoincrement())
+  email           String
+  otp_token       String   // hashed OTP
+  expires_at      DateTime
+  
+  // Registration data (stored temporarily until verified)
+  hashed_password String
+  name            String
+  address         String?
+  phone           String?
+  
+  used            Boolean  @default(false)
+  attempts        Int      @default(0)
+  createdAt       DateTime @default(now())
+  deletedAt       DateTime?
+
+  @@index([email])
+  @@map("otp_verifications")
 }
 
 model Role {

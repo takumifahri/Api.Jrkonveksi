@@ -84,6 +84,36 @@ class MailerService {
         await new MailerService().sendMail(mailOptions);
     }
 
+    static async sendOTPEmail(to: string, otp: string, expired_in: Date): Promise<void> {
+        // Hitung waktu kedaluwarsa dalam menit & detik
+        const now = new Date();
+        const diffMs = expired_in.getTime() - now.getTime();
+        const diffMinutes = Math.floor(diffMs / 60000);
+        const diffSeconds = Math.floor((diffMs % 60000) / 1000);
+
+        const countdown =
+            diffMs > 0
+                ? `${diffMinutes} menit${diffMinutes > 0 ? '' : ''} ${diffSeconds} detik`
+                : 'sudah kedaluwarsa';
+
+        const mailOptions: MailOptions = {
+            to,
+            subject: 'Your OTP Code',
+            text: `Your OTP code is ${otp}. It will expire in ${countdown}.`,
+            html: `
+            <div style="font-family: Arial, sans-serif; color: #333;">
+                <h2 style="color: #5bc0de;">Your OTP Code</h2>
+                <p>Halo,</p>
+                <p>Kode OTP Anda adalah <strong>${otp}</strong>.</p>
+                <p>Harap masukkan kode ini untuk melanjutkan proses verifikasi.</p>
+                <p>OTP ini akan kedaluwarsa dalam <strong>${countdown}</strong>.</p>
+                <p>Terima kasih,<br/>Tim Jrkonveksi</p>
+            </div>
+            `
+        };
+        await new MailerService().sendMail(mailOptions);
+    }
+
 }
 
 export default MailerService;

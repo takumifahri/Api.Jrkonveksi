@@ -1,8 +1,7 @@
 import { Router } from 'express';
-import authController from '../../controller/auth/auth.controller.js';
 import { validateLogin, validateRegister } from '../../middleware/validaator/auth.validator.js';
 const router = Router();
-
+import AuthController from '../../controller/auth/auth.controller.js';
 /**
  * @swagger
  * components:
@@ -141,7 +140,7 @@ const router = Router();
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/register', validateRegister, authController.register);
+router.post('/register', validateRegister, AuthController.register);
 
 /**
  * @swagger
@@ -169,7 +168,7 @@ router.post('/register', validateRegister, authController.register);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/login', validateLogin, authController.login);
+router.post('/login', validateLogin, AuthController.login);
 
 /**
  * @swagger
@@ -189,34 +188,89 @@ router.post('/login', validateLogin, authController.login);
  *                   type: string
  *                   example: Logged out successfully
  */
-router.post('/logout', authController.logout);
+router.post('/logout', AuthController.logout);
 
 /**
  * @swagger
- * /api/auth/verify:
- *   get:
- *     summary: Verify JWT token
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
+ * /api/auth/register:
+ *   post:
+ *     summary: Register new user (sends OTP)
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *               - name
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               address:
+ *                 type: string
+ *               phone:
+ *                 type: string
  *     responses:
  *       200:
- *         description: Token is valid
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 user:
- *                   $ref: '#/components/schemas/User'
- *       401:
- *         description: Invalid or missing token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         description: OTP sent
  */
-router.get('/verify', authController.verifyToken);
+router.post("/register", AuthController.register);
+
+/**
+ * @swagger
+ * /api/auth/verify-otp:
+ *   post:
+ *     summary: Verify OTP and create user
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - verificationId
+ *               - otp
+ *             properties:
+ *               verificationId:
+ *                 type: number
+ *               otp:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: User created
+ */
+router.post("/verify-otp", AuthController.verifyOTP);
+
+/**
+ * @swagger
+ * /api/auth/resend-otp:
+ *   post:
+ *     summary: Resend OTP
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: OTP resent
+ */
+router.post("/resend-otp", AuthController.resendOTP);
 
 /**
  * @swagger
@@ -243,32 +297,6 @@ router.get('/verify', authController.verifyToken);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/me', authController.verifyToken);
-
-/**
- * @swagger
- * /api/auth/refresh:
- *   post:
- *     summary: Refresh access token
- *     tags: [Authentication]
- *     responses:
- *       200:
- *         description: Token refreshed
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 token:
- *                   type: string
- *                   description: New JWT access token
- *       401:
- *         description: Invalid or expired refresh token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
-router.post('/refresh', authController.refreshToken);
+router.get('/me', AuthController.me);
 
 export default router;

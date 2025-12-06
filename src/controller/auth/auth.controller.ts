@@ -1,131 +1,116 @@
 import type { Request, Response, NextFunction } from "express";
 import AuthService from "../../services/auth/auth.service.js";
-import logger from "../../utils/logger.js";
-import { setAuthCookie } from "../../utils/password.utils.js";
+import type { RegisterRequest, VerifyOTPRequest } from "../../interfaces/auth.interface.js";
+
+const register = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const data: RegisterRequest = req.body;
+        const result = await AuthService.register(data);
+        res.status(200).json(result);
+    } catch (error) {
+        next(error);
+    }
+};
+
+const verifyOTP = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { verificationId, otp }: VerifyOTPRequest = req.body;
+        const result = await AuthService.verifyOTP(verificationId, otp);
+        
+        // // Set cookie if needed
+        // res.cookie('accessToken', result.token, {
+        //     httpOnly: true,
+        //     secure: process.env.NODE_ENV === 'production',
+        //     sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+        //     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        // });
+
+        res.status(201).json(result);
+    } catch (error) {
+        next(error);
+    }
+};
+
+const resendOTP = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { email } = req.body;
+        const result = await AuthService.resendOTP(email);
+        res.status(200).json(result);
+    } catch (error) {
+        next(error);
+    }
+};
 
 const login = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { email, password } = req.body;
         const result = await AuthService.login(email, password);
         
-        // ✅ Set HTTP-only cookie
-        setAuthCookie(res, result.token);
-        
-        // ✅ Jangan return token di response body (optional, untuk extra security)
-        const { token, ...responseWithoutToken } = result;
-        
-        res.json({
-            ...responseWithoutToken,
-            token: token,
-            message: 'Login successful'
+        // Set cookie
+        res.cookie('accessToken', result.token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000
         });
-    } catch (err) {
-        next(err);
+
+        res.status(200).json(result);
+    } catch (error) {
+        next(error);
     }
 };
 
-const register = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const { email, password, name, address, phone } = req.body;
-        const result = await AuthService.register(email, password, name, address, phone);
-        res.status(201).json(result);
-    } catch (err) {
-        next(err);
-    }
-};
-
-const verifyToken = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        // ✅ Ambil token dari cookie dulu, fallback ke Authorization header
-        const token = req.cookies.accessToken || req.headers.authorization?.split(" ")[1];
-        
-        if (!token) {
-            return res.status(401).json({ 
-                status: 'error',
-                message: "Token not provided" 
-            });
-        }
-        
-        const result = await AuthService.verifyToken(token);
-        
-        if (!result) {
-            return res.status(401).json({ 
-                status: 'error',
-                message: "Invalid token" 
-            });
-        }
-        
-        res.json(result);
-    } catch (err) {
-        next(err);
-    }
-};
 const logout = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        // ✅ Ambil token dari cookie dulu, fallback ke Authorization header
-        const token = req.cookies.accessToken || req.headers.authorization?.split(" ")[1];
-        if (!token) {
-            return res.status(400).json({
-                status: 'error',
-                message: "No token provided"
-            });
+        const token = req.cookies?.accessToken || req.headers.authorization?.split(' ')[1];
+        
+        if (token) {
+            await AuthService.logout(token);
         }
 
-        await AuthService.logout(token);
-
-        // Hapus cookie
         res.clearCookie('accessToken', {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+            path: '/'
         });
 
-        res.json({
+        res.status(200).json({
             status: 'success',
-            message: 'Logout successful'
+            message: 'Logged out successfully'
         });
-    } catch (err) {
-        next(err);
+    } catch (error) {
+        next(error);
     }
 };
 
-const refreshToken = async (req: Request, res: Response, next: NextFunction) => {
+const me = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const token = req.cookies.accessToken;
+        const token = req.cookies?.accessToken || req.headers.authorization?.split(' ')[1];
         
         if (!token) {
-            return res.status(401).json({ 
-                status: 'error',
-                message: "Token not provided" 
-            });
+            return res.status(401).json({ message: 'Unauthorized' });
         }
-        
+
         const result = await AuthService.verifyToken(token);
         
         if (!result) {
-            return res.status(401).json({ 
-                status: 'error',
-                message: "Invalid token" 
-            });
+            return res.status(401).json({ message: 'Invalid or expired token' });
         }
-        
-        // ✅ Generate new token (optional: implement refresh token logic)
-        res.json({
-            status: 'success',
-            message: 'Token is valid',
-            user: result.user
-        });
-    } catch (err) {
-        next(err);
+
+        res.status(200).json(result);
+    } catch (error) {
+        next(error);
     }
 };
 
-const authController = {
-    login,
+const AuthController = {
     register,
-    verifyToken,
+    verifyOTP,
+    resendOTP,
+    login,
     logout,
-    refreshToken
+    me
 };
 
-export default authController;
+export default AuthController;
