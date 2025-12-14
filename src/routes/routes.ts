@@ -1,6 +1,7 @@
 import type { Application } from 'express';
 import auth_router from "./auth/auth.routes.js";
 import contact_router from './user/contact.routes.js';
+import material_router from './admin/materials.route.js';
 // import router lain di sini
 // import user_router from "./user/user.routes.js";
 // import material_router from "./material/material.routes.js";
@@ -11,29 +12,56 @@ interface Route {
     router: any;
 }
 
-const routes: Record<string, Route> = {
-    auth: {
-        path: '/auth',
-        router: auth_router,
+// Group routes by logical area, then flatten to the `routes` map used by the rest of the file.
+type RouteGroup = {
+    // optional group-level path prefix (e.g. '/admin')
+    path?: string;
+    [key: string]: Route | string | undefined;
+};
+
+const groupedRoutes: Record<string, RouteGroup> = {
+    public: {
+        auth: {
+            path: '/auth',
+            router: auth_router,
+        },
+        contacts: {
+            path: '/contacts',
+            router: contact_router,
+        },
     },
-    contact: {
-        path: '/contacts',
-        router: contact_router
+    admin: {
+        path: '/admin',
+        materials: {
+            // keep admin routes under an admin namespace; can change path if desired
+            path: '/materials',
+            router: material_router,
+        },
+        // Tambahkan route admin lain di sini
     },
-    // Tambahkan route lain di sini
+    // Tambahkan group lain seperti 'user', 'internal', 'apiV2' dsb. Contoh:
     // user: {
-    //     path: '/users',
-    //     router: user_router,
-    // },
-    // material: {
-    //     path: '/materials',
-    //     router: material_router,
-    // },
-    // contact: {
-    //     path: '/contacts',
-    //     router: contact_router,
+    //     profile: { path: '/users/profile', router: user_router },
     // },
 };
+
+// Flatten groupedRoutes to a single map expected by registerRoutes, getRegisteredRoutes, dll.
+const routes: Record<string, Route> = Object.entries(groupedRoutes).reduce((acc, [groupName, group]) => {
+    const groupPrefix = typeof group.path === 'string' ? group.path : '';
+    Object.entries(group).forEach(([routeName, route]) => {
+        // skip group-level metadata (e.g. 'path') which may be a string
+        if (!route || typeof route !== 'object' || !('router' in route) || !('path' in route)) {
+            return;
+        }
+        // combine group prefix with route path so admin routes become /admin/materials
+        const routeObj = route as Route;
+        acc[`${groupName}.${routeName}`] = {
+            path: `${groupPrefix}${routeObj.path}`,
+            router: routeObj.router
+        };
+    });
+    return acc;
+}, {} as Record<string, Route>);
 
 /**
  * Register all routes to Express app

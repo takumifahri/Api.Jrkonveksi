@@ -1,5 +1,5 @@
 import type { AdminRoles } from '../../middleware/auth.middleware.js';
-import ContactController from '../../controller/api/contact.controller.js';
+import ContactController from '../../controller/user/contact.controller.js';
 import { Router } from 'express';
 import { checkRole, authenticate } from '../../middleware/auth.middleware.js';
 const contact_router = Router();

@@ -86,6 +86,7 @@ model Materials {
   status            StatusMaterial
   description       String 
   name              String               @db.VarChar(255)
+  quantity          Int?                  @default(0)
 
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt

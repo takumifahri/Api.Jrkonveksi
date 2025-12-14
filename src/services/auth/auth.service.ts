@@ -6,6 +6,7 @@ import type {
     VerifyOTPResponse,
     LoginResponse
 } from "../../interfaces/auth.interface.js";
+
 import { prisma } from "../../config/prisma.config.js";
 import HttpException from "../../utils/HttpExecption.js";
 import JWTUtils from "../../utils/jwt.js";
