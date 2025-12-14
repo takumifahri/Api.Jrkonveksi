@@ -1,5 +1,4 @@
 import { prisma } from "../config/prisma.config.js";
-import { PasswordUtils } from "../utils/password.utils.js";
 
 export interface IOTPRepository {
     createVerification(data: {
@@ -11,9 +10,10 @@ export interface IOTPRepository {
         address?: string | null;
         phone?: string | null;
     }): Promise<any>;
-    
+
     getVerificationById(id: number): Promise<any | null>;
     getVerificationByEmail(email: string): Promise<any | null>;
+    getLatestVerificationByEmail(email: string): Promise<any | null>;
     deleteVerification(id: number): Promise<void>;
     incrementAttempts(id: number): Promise<void>;
     markAsUsed(id: number): Promise<void>;
@@ -29,9 +29,17 @@ export class OTPRepository implements IOTPRepository {
         address?: string | null;
         phone?: string | null;
     }) {
-        // Delete any existing verification for this email first
-        await prisma.oTP_Verification.deleteMany({
-            where: { email: data.email }
+        // PERBAIKAN: Soft delete instead of hard delete
+        // Mark existing verifications as used instead of deleting
+        await prisma.oTP_Verification.updateMany({
+            where: { 
+                email: data.email,
+                used: false 
+            },
+            data: { 
+                used: true,
+                deletedAt: new Date() 
+            }
         });
 
         return await prisma.oTP_Verification.create({
@@ -41,8 +49,8 @@ export class OTPRepository implements IOTPRepository {
                 expires_at: data.expiresAt,
                 hashed_password: data.hashedPassword,
                 name: data.name,
-                address: data.address || null,
-                phone: data.phone || null
+                address: data.address ?? null,
+                phone: data.phone ?? null
             }
         });
     }
@@ -64,9 +72,21 @@ export class OTPRepository implements IOTPRepository {
         });
     }
 
+    // Get latest verification regardless of expiry (for resend)
+    async getLatestVerificationByEmail(email: string) {
+        return await prisma.oTP_Verification.findFirst({
+            where: {
+                email,
+                used: false
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+    }
+
     async deleteVerification(id: number) {
-        await prisma.oTP_Verification.delete({
-            where: { id }
+        await prisma.oTP_Verification.update({
+            where: { id },
+            data: { deletedAt: new Date() }
         });
     }
 
@@ -78,6 +98,16 @@ export class OTPRepository implements IOTPRepository {
     }
 
     async markAsUsed(id: number) {
+        // PERBAIKAN: Check if record exists first
+        const record = await prisma.oTP_Verification.findUnique({
+            where: { id }
+        });
+
+        if (!record) {
+            // Record already deleted/doesn't exist - skip update
+            return;
+        }
+
         await prisma.oTP_Verification.update({
             where: { id },
             data: {

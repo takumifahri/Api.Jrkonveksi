@@ -83,7 +83,7 @@ class AuthService implements IAuthService {
     async verifyOTP(verificationId: number, otpPlain: string): Promise<VerifyOTPResponse> {
         // Get verification record
         const verification = await this.otpRepository.getVerificationById(verificationId);
-        
+
         if (!verification) {
             throw new HttpException(404, 'Verification not found or already used');
         }
@@ -107,7 +107,7 @@ class AuthService implements IAuthService {
 
         // Verify OTP hash
         const isOTPValid = await PasswordUtils.verifyPassword(verification.otp_token, otpPlain);
-        
+
         if (!isOTPValid) {
             // Increment failed attempts
             await this.otpRepository.incrementAttempts(verification.id);
@@ -178,41 +178,64 @@ class AuthService implements IAuthService {
      * Resend OTP: Generate new OTP for existing verification
      */
     async resendOTP(email: string): Promise<{ message: string }> {
-        // Get existing verification
-        const verification = await this.otpRepository.getVerificationByEmail(email);
-        
-        if (!verification) {
-            throw new HttpException(404, 'No pending verification found for this email');
+        // Get latest verification (even if expired)
+        const oldVerification = await this.otpRepository.getLatestVerificationByEmail(email);
+
+        if (!oldVerification) {
+            throw new HttpException(
+                404,
+                'No pending verification found for this email. Please register again.'
+            );
         }
 
-        // Rate limit check
-        const timeSinceCreated = Date.now() - new Date(verification.createdAt).getTime();
+        // Rate limit check (prevent spam)
+        const timeSinceCreated = Date.now() - new Date(oldVerification.createdAt).getTime();
         if (timeSinceCreated < 60_000) { // 60 seconds
-            throw new HttpException(429, 'Please wait before requesting another OTP');
+            const remainingSeconds = Math.ceil((60_000 - timeSinceCreated) / 1000);
+            throw new HttpException(
+                429,
+                `Please wait ${remainingSeconds} seconds before requesting another OTP`
+            );
         }
 
-        // Generate new OTP
+        // Generate NEW OTP
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
+        const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
         const hashedOtp = await PasswordUtils.hashPassword(otp);
 
-        // Update verification with new OTP
-        await prisma.oTP_Verification.update({
-            where: { id: verification.id },
-            data: {
-                otp_token: hashedOtp,
-                expires_at: otpExpiry,
-                attempts: 0, // reset attempts
-                createdAt: new Date() // update timestamp for rate limiting
-            }
+        // Create NEW verification record with COPIED data from old record
+        const newVerification = await this.otpRepository.createVerification({
+            email: oldVerification.email,
+            hashedOtp,
+            expiresAt: otpExpiry,
+            hashedPassword: oldVerification.hashed_password, // COPY from old
+            name: oldVerification.name,                      // COPY from old
+            address: oldVerification.address,                // COPY from old
+            phone: oldVerification.phone                     // COPY from old
         });
 
-        // Send new OTP email
-        await MailerService.sendOTPEmail(email, otp, otpExpiry);
+        // Mark old verification as used/deleted (cleanup)
+        await this.otpRepository.markAsUsed(oldVerification.id);
 
-        logger.info('OTP resent', { email, verificationId: verification.id });
+        // Send NEW OTP email
+        try {
+            await MailerService.sendOTPEmail(email, otp, otpExpiry);
+        } catch (mailErr) {
+            // Cleanup new verification if email fails
+            await this.otpRepository.deleteVerification(newVerification.id);
+            logger.error('Failed to resend OTP email', { email, error: String(mailErr) });
+            throw new HttpException(500, 'Failed to send OTP email');
+        }
 
-        return { message: 'New OTP sent to email' };
+        logger.info('OTP resent (new record created)', {
+            email,
+            oldVerificationId: oldVerification.id,
+            newVerificationId: newVerification.id
+        });
+
+        return {
+            message: 'New OTP sent to email. Please check your inbox and verify within 5 minutes.'
+        };
     }
 
     /**
@@ -300,7 +323,7 @@ class AuthService implements IAuthService {
         try {
             const secret = process.env.JWT_SECRET || 'your-secret-key';
             const payload = JWTUtils.verifyToken(token, secret) as any;
-            
+
             if (!payload?.userId) return null;
 
             const user = await this.userRepository.findById(payload.userId);
