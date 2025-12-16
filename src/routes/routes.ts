@@ -2,6 +2,7 @@ import type { Application } from 'express';
 import auth_router from "./auth/auth.routes.js";
 import contact_router from './user/contact.routes.js';
 import material_router from './admin/materials.route.js';
+import admin_user_router from './admin/user.route.js';
 // import router lain di sini
 // import user_router from "./user/user.routes.js";
 // import material_router from "./material/material.routes.js";
@@ -37,6 +38,10 @@ const groupedRoutes: Record<string, RouteGroup> = {
             path: '/materials',
             router: material_router,
         },
+        user : {
+            path: '/users',
+            router: admin_user_router,
+        }
         // Tambahkan route admin lain di sini
     },
     // Tambahkan group lain seperti 'user', 'internal', 'apiV2' dsb. Contoh:

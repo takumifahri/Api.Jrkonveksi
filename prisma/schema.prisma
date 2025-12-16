@@ -22,7 +22,8 @@ model User {
   roleId        Int
   phone         String?
   address       String?
-  
+  isBlocked     Boolean?
+
   // otp verified
   is_verified   Boolean  @default(false)
   
@@ -33,6 +34,7 @@ model User {
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  deleteAt      DateTime?
   role          Role     @relation(fields: [roleId], references: [id])
   
   @@map("users")
