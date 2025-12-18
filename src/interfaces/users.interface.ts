@@ -31,6 +31,7 @@ export interface updateUserRequest {
 
 export interface UserResponse {
     id: number;
+    unique_id: string;
     name: string;
     email: string;
     role: UserRole | 'user';

@@ -46,6 +46,11 @@ export interface VerifyOTPResponse {
     // token: string;
 }
 
+export interface Requester {
+  id: number;
+  role?: "Admin" | "Manager" | "User";
+}
+
 export interface IAuthService {
     register(data: RegisterRequest): Promise<RegisterResponse>;
     verifyOTP(verificationId: number, otp: string): Promise<VerifyOTPResponse>;

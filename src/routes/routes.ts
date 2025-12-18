@@ -3,6 +3,7 @@ import auth_router from "./auth/auth.routes.js";
 import contact_router from './user/contact.routes.js';
 import material_router from './admin/materials.route.js';
 import admin_user_router from './admin/user.route.js';
+import custom_order_router from './user/custom_order.routes.js';
 // import router lain di sini
 // import user_router from "./user/user.routes.js";
 // import material_router from "./material/material.routes.js";
@@ -30,6 +31,10 @@ const groupedRoutes: Record<string, RouteGroup> = {
             path: '/contacts',
             router: contact_router,
         },
+        custom_order: {
+            path: '/orders/custom',
+            router: custom_order_router,
+        }
     },
     admin: {
         path: '/admin',

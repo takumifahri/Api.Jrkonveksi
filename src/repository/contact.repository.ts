@@ -55,9 +55,9 @@ export class ContactRepository implements IContactRepository {
                 email: contact.email,
                 phone: contact.phone,
                 title: contact.title,
-                contacatId: contactId,
+                contact_id: contactId,
                 Message: replyMessage,
-                RespondenId: replyBy
+                responden_id: replyBy
             }
         });
     }

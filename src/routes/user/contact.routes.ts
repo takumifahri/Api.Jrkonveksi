@@ -113,7 +113,7 @@ contact_router.post('/send-email', ContactController.sendEmail);
  *       404:
  *         description: No contacts found
  */
-contact_router.get('/', ContactController.getAllContacts);
+contact_router.get('/', authenticate,  checkRole(allowedRoles), ContactController.getAllContacts);
 
 /**
  * @swagger
@@ -142,7 +142,7 @@ contact_router.get('/', ContactController.getAllContacts);
  *       404:
  *         description: Contact not found
  */
-contact_router.get('/:id', ContactController.getContactById);
+contact_router.get('/:id', authenticate,  checkRole(allowedRoles), ContactController.getContactById);
 
 /**
  * @swagger

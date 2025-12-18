@@ -32,6 +32,10 @@ app.use(morgan(morganFormat, { stream: morganStream }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+(BigInt.prototype as any).toJSON = function () {
+    return this.toString();
+};
+
 // Request logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
   const start = Date.now();

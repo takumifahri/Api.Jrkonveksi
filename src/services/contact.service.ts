@@ -89,7 +89,7 @@ class ContactService implements IContactService {
         try {
             const contacts = await this.contactRepository.getAllContacts();
             if (contacts.length === 0) {
-                throw new HttpException(404, 'No contacts found');
+                return [];
             }
             const mappedContacts: ResponseContact[] = contacts.map(contact => ({
                 id: contact.id,
@@ -113,7 +113,7 @@ class ContactService implements IContactService {
                 throw new HttpException(404, 'Contact not found');
             }
             const getReplyContact = await prisma.responseContact.findMany({
-                where: { contacatId: contactId },
+                where: { contact_id: contactId },
                 include: { user: true }
             });
             return {

@@ -63,8 +63,9 @@ class UserManagementService implements IUserManagementRepository {
                 }
                 assignedRoleId = defaultRole.id;
             }
-
+            const uniqueGenerator = `USER-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
             const newUser = await this.userRepository.createUser({
+                unique_id: uniqueGenerator,
                 name,
                 email,
                 password: hashedPassword,
@@ -77,6 +78,7 @@ class UserManagementService implements IUserManagementRepository {
 
             const resultData: UserResponse = {
                 id: newUser.id,
+                unique_id: newUser.unique_id,
                 name: newUser.name,
                 email: newUser.email,
                 role: newUser.role,
@@ -168,6 +170,7 @@ class UserManagementService implements IUserManagementRepository {
 
             const result: UserResponse[] = users.map(u => ({
                 id: u.id,
+                unique_id: u.unique_id,
                 name: u.name,
                 email: u.email,
                 role: u.role,

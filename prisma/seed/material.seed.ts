@@ -20,7 +20,7 @@ export async function seedMaterials(prisma: PrismaClient) {
       unique_id: 'mat-003',
       name: 'Benang Jahit Putih',
       description: 'Benang jahit warna putih ukuran 40',
-      status: StatusMaterial.HABIS,
+      status: StatusMaterial.UNAVAILABLE,
     },
     {
       unique_id: 'mat-004',

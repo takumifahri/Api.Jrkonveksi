@@ -22,12 +22,10 @@ model User {
   roleId        Int
   phone         String?
   address       String?
-  isBlocked     Boolean?
+  is_blocked    Boolean?
 
-  // otp verified
   is_verified   Boolean  @default(false)
-  
-  // Security
+
   login_attempt Int      @default(0)
   token_version Int      @default(0)
   last_login    DateTime?
@@ -36,11 +34,17 @@ model User {
   updatedAt     DateTime @updatedAt
   deleteAt      DateTime?
   role          Role     @relation(fields: [roleId], references: [id])
-  
+
+  // <-- added opposite relation fields
+  customerOrders        PemesananKonveksi[]   @relation("CustomerOrders")
+  adminHandledOrders    PemesananKonveksi[]   @relation("AdminHandledOrders")
+  customerPayments      Transaction[]         @relation("Customer_Payment")
+  adminHandledPayments  Transaction[]         @relation("Admin_Handled_Payment")
+
   @@map("users")
-  
   ResponseContact   ResponseContact[]
 }
+
 
 model OTP_Verification {
   id              Int      @id @default(autoincrement())
@@ -78,22 +82,125 @@ model Role {
 }
 
 enum StatusMaterial {
-  HABIS
+  UNAVAILABLE
   AVAILABLE
+  PENDING
 }
 
 model Materials {
-  id                Int                  @id @default(autoincrement())
-  unique_id         String               @unique
-  status            StatusMaterial
-  description       String 
-  name              String               @db.VarChar(255)
-  quantity          Int?                  @default(0)
+  id         Int      @id @default(autoincrement())
+  unique_id  String   @unique
+  status     StatusMaterial
+  description String
+  name       String   @db.VarChar(255)
+  quantity   Int?     @default(0)
 
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  deletedAt         DateTime? 
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  // <-- added opposite relation field
+  pemesanan  PemesananKonveksi[]
 }
+
+enum UkuranBaju {
+  EXTRA_SMALL
+  SMALL
+  MEDIUM
+  REGULER
+  LARGE
+  EXTRA_LARGE
+  DOUBLE_EXTRA_LARGE
+  CUSTOM
+}
+
+enum StatusPemesanan {
+  PENDING
+  DITOLAK
+  NEGOSIASI
+  PEMBAYARAN
+  PENGERJAAN
+  DIBATALKAN
+  SELESAI 
+}
+
+model PemesananKonveksi {
+  id                Int      @id @default(autoincrement())
+  unique_id         String   @unique @default(cuid())
+
+  nama_pemesanan    String
+  total_harga       BigInt?
+  ukuran            UkuranBaju
+  status            StatusPemesanan
+  jumlah_barang     Int
+  warna             String? 
+  catatan           String?
+
+  material_sendiri  Boolean?  @default(false)
+
+  user_id           Int
+  admin_id          Int?
+  material_id       Int?
+
+  waktu_terima      DateTime?
+  waktu_tolak       DateTime?
+
+  alasan_ditolak    String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deletedAt         DateTime?
+
+  // Two separate relations to User: customer and admin
+  customer          User     @relation("CustomerOrders", fields: [user_id], references: [id])
+  admin             User?    @relation("AdminHandledOrders", fields: [admin_id], references: [id])
+
+  // material relation (many-to-one) -> Materials must have opposite array
+  material          Materials? @relation(fields: [material_id], references: [id])
+
+    // sisi non‑defining: tidak menyertakan fields+references
+  transaction        Transaction? @relation("Pemesanan_Transaction")
+}
+
+enum StatusPembayaran {
+  LUNAS
+  BELUM_BAYAR
+  DIBATALKAN
+}
+
+enum PaymentMethod {
+  GOPAY
+  OVO
+  SEABANK
+  BCA
+  SHOPEEPAY
+}
+
+model Transaction {
+  id                Int      @id @default(autoincrement())
+  unique_id         String   @unique @default(cuid())
+
+  status            StatusPembayaran
+  total_harga       BigInt
+  payment_method    PaymentMethod?
+  file_screenshot   String?
+  keterangan        String?
+
+  custom_order_id   Int?     @unique
+  user_id           Int
+  admin_id          Int?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deletedAt         DateTime?
+
+  // defining side: fields+references + same relation name
+  custom_order      PemesananKonveksi? @relation("Pemesanan_Transaction", fields: [custom_order_id], references: [id])
+  customer          User     @relation("Customer_Payment", fields: [user_id], references: [id])
+  admin             User?    @relation("Admin_Handled_Payment", fields: [admin_id], references: [id])
+}
+
+
 
 model ContactForm {
   id                Int                  @id @default(autoincrement())
@@ -113,12 +220,11 @@ model ContactForm {
 
 }
 
-
 model ResponseContact {
   id                Int                  @id @default(autoincrement())
   unique_id         String               @unique
-  contacatId        Int        
-  RespondenId       Int        
+  contact_id        Int        
+  responden_id       Int        
           
   name              String 
   email             String   
@@ -130,6 +236,6 @@ model ResponseContact {
   updatedAt         DateTime             @updatedAt
   deletedAt         DateTime? 
 
-  ContactForm       ContactForm          @relation(fields: [contacatId], references: [id])
-  user              User                 @relation(fields: [RespondenId], references: [id])
+  ContactForm       ContactForm          @relation(fields: [contact_id], references: [id])
+  user              User                 @relation(fields: [responden_id], references: [id])
 }

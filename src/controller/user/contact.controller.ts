@@ -13,7 +13,10 @@ const sendEmail = async (req: Request, res: Response, next: NextFunction) => {
             phone: phone === undefined ? null : phone,
             message
         });
-        res.status(201).json(result);
+        res.status(201).json({
+            message: "Contact form submitted successfully",
+            data: result
+        });
     } catch (error) {
         logger.error(`sendEmail - ${error}`);
         res.status(500).json({ message: "Internal Server Error" });
@@ -23,7 +26,10 @@ const sendEmail = async (req: Request, res: Response, next: NextFunction) => {
 const getAllContacts = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const contacts = await ContactService.getAllContacts();
-        res.status(200).json(contacts);
+        res.status(200).json({
+            message: "Contacts retrieved successfully",
+            data: contacts
+        });
     } catch (error) {
         logger.error(`getAllContacts - ${error}`);
         next(error);
@@ -38,7 +44,10 @@ const getContactById = async (req: Request, res: Response, next: NextFunction) =
             return res.status(400).json({ message: "Invalid contact id" });
         }
         const contact = await ContactService.getIdContact(contactId);
-        res.status(200).json(contact);
+        res.status(200).json({
+            message: "Contact retrieved successfully",
+            data: contact
+        });
     } catch (error) {
         logger.error(`getContactById - ${error}`);
         next(error);
@@ -59,7 +68,10 @@ const replyToContact = async (req: Request, res: Response, next: NextFunction) =
             return res.status(400).json({ message: "Invalid user id" });
         }
         const reply = await ContactService.replyToContact(Number(contactId), replyMessage, replyBy);
-        res.status(200).json(reply);
+        res.status(200).json({
+            message: "Reply sent successfully",
+            data: reply
+        });
     } catch (error) {
         logger.error(`replyToContact - ${error}`);
         next(error);

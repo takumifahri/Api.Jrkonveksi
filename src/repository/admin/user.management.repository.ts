@@ -96,14 +96,14 @@ export class UserManagementRepository implements IUserManagementRepository {
     async blockUser(id: number): Promise<any> {
         return prisma.user.update({
             where: { id },
-            data: { isBlocked: true }
+            data: { is_blocked: true }
         });
     }
 
     async unblockUser(id: number): Promise<any> {
         return prisma.user.update({
             where: { id },
-            data: { isBlocked: false }
+            data: { is_blocked: false }
         });
     }
 }
