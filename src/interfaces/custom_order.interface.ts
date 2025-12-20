@@ -31,6 +31,9 @@ export interface createCustomOrderRequest {
     catatan?: string | null;
     material_sendiri?: boolean | false;
     material_id?: number | null;
+    model_baju_id?: number | null;
+    referensi_custom?: boolean | false;
+    file_referensi_custom?: string | null;
 }
 
 export interface updateCustomOrderRequest {
@@ -57,6 +60,9 @@ export interface customOrderResponse {
     material_sendiri?: boolean | null;
     material_id?: number | null;
     user_id: number;
+    model_baju_id?: number | null;
+    referensi_custom?: boolean | null;
+    file_referensi_custom?: string | null;
 
     diterima_pada?: Date | null;
     ditolak_pada?: Date | null;

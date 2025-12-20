@@ -26,7 +26,11 @@ const createSchema = z.object({
   ]).optional(),
   catatan: z.string().optional().nullable(),
   material_sendiri: z.boolean().optional(),
-  material_id: z.number().int().optional().nullable()
+  material_id: z.number().int().optional().nullable(),
+  model_baju_id: z.number().int().optional().nullable(),
+  referensi_custom: z.boolean().optional(),
+  file_referensi_custom: z.array(z.string().url()).optional().nullable()
+
 });
 
 const updateSchema = createSchema.partial();

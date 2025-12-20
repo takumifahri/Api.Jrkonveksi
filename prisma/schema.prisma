@@ -139,9 +139,14 @@ model PemesananKonveksi {
 
   material_sendiri  Boolean?  @default(false)
 
+  // Referensi foto
+  referensi_custom  Boolean?  @default(false)
+  file_referensi_custom String? 
+
   user_id           Int
   admin_id          Int?
   material_id       Int?
+  model_baju_id     Int?
 
   waktu_terima      DateTime?
   waktu_tolak       DateTime?
@@ -153,6 +158,8 @@ model PemesananKonveksi {
   deletedAt         DateTime?
 
   // Two separate relations to User: customer and admin
+  model             ModelBaju?  @relation("ModelBaju", fields: [model_baju_id], references: [id])
+
   customer          User     @relation("CustomerOrders", fields: [user_id], references: [id])
   admin             User?    @relation("AdminHandledOrders", fields: [admin_id], references: [id])
 
@@ -201,6 +208,22 @@ model Transaction {
   custom_order      PemesananKonveksi? @relation("Pemesanan_Transaction", fields: [custom_order_id], references: [id])
   customer          User     @relation("Customer_Payment", fields: [user_id], references: [id])
   admin             User?    @relation("Admin_Handled_Payment", fields: [admin_id], references: [id])
+}
+
+model ModelBaju{
+  id                Int      @id @default(autoincrement())
+  unique_id         String   @unique @default(cuid())
+
+  nama              String   @db.VarChar(255)
+  deskripsi         String?
+  material          String
+  rentang_harga     BigInt? @default(0)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deletedAt         DateTime?
+
+  model        PemesananKonveksi[]   @relation("ModelBaju")
 }
 
 model AuditLog {
