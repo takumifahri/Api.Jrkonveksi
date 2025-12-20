@@ -40,7 +40,8 @@ model User {
   adminHandledOrders    PemesananKonveksi[]   @relation("AdminHandledOrders")
   customerPayments      Transaction[]         @relation("Customer_Payment")
   adminHandledPayments  Transaction[]         @relation("Admin_Handled_Payment")
-
+  auditLogs            AuditLog[]            // actions performed by this user
+  adminAuditLogs       AuditLog[]            @relation("AdminAudit") // actions this user performed as admin
   @@map("users")
   ResponseContact   ResponseContact[]
 }
@@ -166,6 +167,7 @@ enum StatusPembayaran {
   LUNAS
   BELUM_BAYAR
   DIBATALKAN
+  DITOLAK
 }
 
 enum PaymentMethod {
@@ -185,6 +187,7 @@ model Transaction {
   payment_method    PaymentMethod?
   file_screenshot   String?
   keterangan        String?
+  alasan_ditolak    String?
 
   custom_order_id   Int?     @unique
   user_id           Int
@@ -200,7 +203,24 @@ model Transaction {
   admin             User?    @relation("Admin_Handled_Payment", fields: [admin_id], references: [id])
 }
 
-
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  action      String   // 'CREATE_ORDER', 'UPDATE_PAYMENT', 'DELETE_MATERIAL'
+  entity      String   // 'custom_order', 'transaction', 'material'
+  entity_id   Int?
+  user_id     Int?
+  admin_id    Int?
+  old_data    Json?    // Data sebelum perubahan
+  new_data    Json?    // Data setelah perubahan
+  ip_address  String?
+  user_agent  String?
+  created_at  DateTime @default(now())
+  
+  user        User?    @relation(fields: [user_id], references: [id])
+  admin       User?    @relation("AdminAudit", fields: [admin_id], references: [id])
+  
+  @@map("audit_logs")
+}
 
 model ContactForm {
   id                Int                  @id @default(autoincrement())

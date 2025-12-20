@@ -1,4 +1,4 @@
-import logger from "../../utils/logger.js";
+import logger, { logInfo, logError, logWarn, logAudit } from "../../utils/logger.js";
 import HttpException from "../../utils/HttpExecption.js";
 import validatorCustomOrder from "../../middleware/validaator/custom_order.validator.js";
 import type {
@@ -39,7 +39,25 @@ export class CustomOrderService implements ICustomOrderRepository {
                 throw new HttpException(400, "material is required when material_sendiri is false");
             }
 
-            return await this.customOrderRepo.createCustomOrder(parsed.data as createCustomOrderRequest);
+            const result = await this.customOrderRepo.createCustomOrder(parsed.data as createCustomOrderRequest);
+            // Log success dengan audit trail
+            logAudit("CUSTOM_ORDER_CREATED", {
+                order_id: result.id,
+                unique_id: result.unique_id,
+                user_id: result.user_id,
+                nama_pemesanan: result.nama_pemesanan,
+                jumlah_barang: result.jumlah_barang,
+                material_sendiri: result.material_sendiri,
+                material_id: result.material_id
+            });
+
+            logInfo("Custom order created successfully", {
+                order_id: result.id,
+                unique_id: result.unique_id,
+                user_id: result.user_id
+            });
+
+            return result;
         } catch (err: any) {
             logger.error("Error creating custom order", { message: err?.message, name: err?.name, stack: err?.stack });
             if (err?.name === "PrismaClientValidationError" || err?.code === "P2021" || err?.code === "P2002") {

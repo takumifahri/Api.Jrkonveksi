@@ -43,6 +43,12 @@ const getAllCustomOrders = async (req: Request, res: Response, next: NextFunctio
         if (sortOrderValue) query.sortOrder = sortOrderValue;
 
         const result = await CustomOrderService.getAllCustomOrders(query, user);
+        if (!result) {
+            return res.json({
+                message: "No Data Found",
+                data: result
+            });
+        }
         return res.json({
             message: "Retrieved Data Successfully",
             data: result
@@ -57,6 +63,12 @@ const getCustomOrderById = async (req: Request, res: Response, next: NextFunctio
     try {
         const id = Number(req.params.id);
         const order = await CustomOrderService.getCustomOrderById(id);
+        if (!order) {
+            return res.json({
+                message: "No Data Found",
+                data: order
+            });
+        }
         return res.json({
             message: "Retrieved Data Successfully",
             data: order
@@ -72,6 +84,12 @@ const updateCustomOrder = async (req: Request, res: Response, next: NextFunction
         const id = Number(req.params.id);
         const payload = { ...req.body };
         const updated = await CustomOrderService.updateCustomOrder(id, payload);
+        if (!updated) {
+            return res.json({
+                message: "No Data Found",
+                data: updated
+            });
+        }
         return res.json({
             message: "Updated Data Successfully",
             data: updated
@@ -86,6 +104,12 @@ const deleteCustomOrder = async (req: Request, res: Response, next: NextFunction
     try {
         const id = Number(req.params.id);
         const result = await CustomOrderService.deleteCustomOrder(id);
+        if (!result) {
+            return res.json({
+                message: "No Data Found",
+                data: result
+            });
+        }
         return res.json({
             message: "Deleted Data Successfully",
             data: result
@@ -100,6 +124,12 @@ const softDeleteCustomOrder = async (req: Request, res: Response, next: NextFunc
     try {
         const id = Number(req.params.id);
         const result = await CustomOrderService.softDeleteCustomOrder(id);
+        if (!result) {
+            return res.json({
+                message: "No Data Found",
+                data: result
+            });
+        }
         return res.json({
             message: "Soft Deleted Data Successfully",
             data: result

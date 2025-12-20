@@ -1,32 +1,48 @@
-// src/middlewares/error.middleware.ts
 import type { Request, Response, NextFunction } from 'express';
 import HttpException from '../utils/HttpExecption.js';
-import config from '../config/config.js';
+import logger from '../utils/logger.js';
 
-export const errorMiddleware = (
-    err: HttpException, 
-    req: Request, 
-    res: Response, 
-    next: NextFunction // Argumen keempat ini menandakan Error Middleware
+export const errorHandler = (
+    error: any,
+    req: Request,
+    res: Response,
+    next: NextFunction
 ) => {
-    // Tentukan status error:
-    // Jika error kustom, gunakan statusnya. Jika tidak, gunakan 500 (Internal Server Error)
-    const status = err.status || 500;
-    
-    // Tentukan pesan error:
-    const message = err.message || 'Something went wrong';
+    // ✅ Check multiple ways
+    const isHttpException = 
+        error instanceof HttpException ||
+        error.isHttpException === true ||
+        (error.status && typeof error.status === 'number' && error.status < 600);
 
-    // Log error stack trace (hanya di development)
-    if (config.env === 'development') {
-        console.error(`[Error]: ${req.method} ${req.path}`, err.stack);
+    if (isHttpException) {
+        const status = error.status || 500;
+        const message = error.message || 'Internal Server Error';
+
+        logger.error('Handled error', {
+            error: message,
+            status: status,
+            method: req.method,
+            url: req.url,
+            ip: req.ip
+        });
+
+        return res.status(status).json({
+            status: status,
+            message: message
+        });
     }
 
-    // Kirim response error yang terstruktur
-    res.status(status).json({
-        success: false,
-        status,
-        message,
-        // Di lingkungan development, kirim stack trace untuk debugging
-        stack: config.env === 'development' ? err.stack : undefined, 
+    // ✅ Unhandled errors jadi 500
+    logger.error('Unhandled error', {
+        error: error.message || 'Unknown error',
+        stack: error.stack,
+        method: req.method,
+        url: req.url,
+        ip: req.ip
+    });
+
+    return res.status(500).json({
+        status: 500,
+        message: 'Internal Server Error'
     });
 };

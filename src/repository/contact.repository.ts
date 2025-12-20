@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma.config.js";
+import HttpException from "../utils/HttpExecption.js";
 
 export interface IContactRepository {
     createContact(data: any): Promise<any>;
@@ -9,17 +10,22 @@ export interface IContactRepository {
 
 export class ContactRepository implements IContactRepository {
     async createContact(data: any): Promise<any> {
-        return await prisma.contactForm.create({
+        const result = await prisma.contactForm.create({
             data
         });
+        if (!result) {
+            throw new HttpException(400, `Failed to create contact ${data.name}`);
+        }
+        return result;
     }
 
     async getAllContacts(): Promise<any[]> {
-        return await prisma.contactForm.findMany({
+        const contacts = await prisma.contactForm.findMany({
             include: {
                 response: true
             }
         });
+        return contacts;
     }
     async getContactById(id: number): Promise<any> {
         return await prisma.contactForm.findUnique({

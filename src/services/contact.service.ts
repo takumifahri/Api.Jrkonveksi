@@ -81,16 +81,20 @@ class ContactService implements IContactService {
             return { success: true, message: 'Contact form submitted successfully' };
         } catch (error) {
             logger.error(`ContactService - submitContactForm: ${error}`);
-            throw new HttpException(500, 'Internal Server Error');
+            throw new HttpException(500, 'Failed to submit contact form');
         }
     }
 
     async getAllContacts(): Promise<ResponseContact[]> {
         try {
             const contacts = await this.contactRepository.getAllContacts();
+            
+            // ✅ Return empty array jika tidak ada data (bukan error)
             if (contacts.length === 0) {
+                logger.info('ContactService - getAllContacts: No contacts found');
                 return [];
             }
+
             const mappedContacts: ResponseContact[] = contacts.map(contact => ({
                 id: contact.id,
                 email: contact.email,
@@ -99,23 +103,32 @@ class ContactService implements IContactService {
                 message: contact.Message,
                 response: contact.response
             }));
+
+            logger.info(`ContactService - getAllContacts: Retrieved ${mappedContacts.length} contacts`);
             return mappedContacts;
         } catch (error) {
             logger.error(`ContactService - getAllContacts: ${error}`);
-            throw new HttpException(500, 'Internal Server Error');
+            throw new HttpException(500, 'Failed to retrieve contacts');
         }
     }
 
     async getIdContact(contactId: number): Promise<ResponseContact> {
         try {
             const contact = await this.contactRepository.getContactById(contactId);
+            
+            // ✅ Throw 404 jika data tidak ditemukan
             if (!contact) {
+                logger.warn(`ContactService - getIdContact: Contact with ID ${contactId} not found`);
                 throw new HttpException(404, 'Contact not found');
             }
+
             const getReplyContact = await prisma.responseContact.findMany({
                 where: { contact_id: contactId },
                 include: { user: true }
             });
+
+            logger.info(`ContactService - getIdContact: Retrieved contact ID ${contactId} with ${getReplyContact.length} replies`);
+
             return {
                 id: contact.id,
                 email: contact.email,
@@ -125,44 +138,51 @@ class ContactService implements IContactService {
                 reply: getReplyContact
             };
         } catch (error) {
-            logger.error(`ContactService - getIdContact: ${error}`);
+            // ✅ Re-throw HttpException as-is (preserve status code)
             if (error instanceof HttpException) {
                 throw error;
             }
-            throw new HttpException(500, 'Internal Server Error');
+            // ✅ Unexpected errors jadi 500
+            logger.error(`ContactService - getIdContact: Unexpected error - ${error}`);
+            throw new HttpException(500, 'Failed to retrieve contact');
         }
     }
 
     async replyToContact(contactId: number, replyMessage: string, replyBy: number): Promise<ResponseReplyContact> {
         try {
+            // ✅ Check contact exists
             const contact = await this.contactRepository.getContactById(contactId);
             if (!contact) {
+                logger.warn(`ContactService - replyToContact: Contact with ID ${contactId} not found`);
                 throw new HttpException(404, 'Contact not found');
             }
-            // Ambil data user admin dari JWT (misal sudah di-parse di middleware dan ada di request.user)
-            const adminUserId = replyBy;
+
+            // ✅ Check admin user exists
             const adminUser = await prisma.user.findUnique({
-                where: { id: adminUserId }
+                where: { id: replyBy }
             });
             if (!adminUser) {
+                logger.warn(`ContactService - replyToContact: Admin user with ID ${replyBy} not found`);
                 throw new HttpException(404, 'Admin user not found');
             }
-            // Fetch contact data to get name, email, phone, title
+
+            // ✅ Fetch contact data untuk email
             const contactData = await prisma.contactForm.findUnique({
                 where: { id: Number(contactId) }
             });
-
             if (!contactData) {
-                throw new HttpException(404, "Contact not found");
+                logger.warn(`ContactService - replyToContact: Contact data with ID ${contactId} not found in database`);
+                throw new HttpException(404, 'Contact data not found');
             }
 
-            
+            // Create reply
             const newReply = await this.contactRepository.replyToContact(
                 Number(contactId),
                 replyMessage,
                 adminUser.id
             );
-            // Send Email
+
+            // Send email notification
             const mailerService = new MailerService();
             const mailOptions = {
                 from: `"Jrkonveksi Admin" <${config.smtp.from}>`,
@@ -207,6 +227,9 @@ class ContactService implements IContactService {
                 text: `☕ Balasan dari Admin Jrkonveksi ☕\n\nNama Anda: ${contactData.name}\nEmail Anda: ${contactData.email}\nTelepon: ${contactData.phone || 'N/A'}\nPesan Anda: ${contactData.Message || 'N/A'}\n\nBalasan Admin: ${replyMessage}\n\nEmail ini dikirim otomatis oleh sistem Jrkonveksi.`,
             };
             await mailerService.sendMail(mailOptions);
+
+            logger.info(`ContactService - replyToContact: Reply sent to contact ID ${contactId} by admin ID ${replyBy}`);
+
             return {
                 id: newReply.id,
                 contactId: newReply.contacatId,
@@ -214,11 +237,13 @@ class ContactService implements IContactService {
                 replyBy: newReply.RespondenId
             };
         } catch (error) {
-            logger.error(`ContactService - replyToContact: ${error}`);
+            // ✅ Re-throw HttpException as-is (preserve status code)
             if (error instanceof HttpException) {
                 throw error;
             }
-            throw new HttpException(500, 'Internal Server Error');
+            // ✅ Unexpected errors jadi 500
+            logger.error(`ContactService - replyToContact: Unexpected error - ${error}`);
+            throw new HttpException(500, 'Failed to send reply');
         }
     }
 }

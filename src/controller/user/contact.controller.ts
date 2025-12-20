@@ -1,88 +1,137 @@
 import type { Request, Response, NextFunction } from "express";
 import ContactService from "../../services/contact.service.js";
-
 import logger from "../../utils/logger.js";
-import type { ContactFormRequest } from "../../interfaces/contact.interface.js";
+import HttpException from "../../utils/HttpExecption.js";
 
-const sendEmail = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const { name, email, phone, message }: ContactFormRequest = req.body;
-        const result = await ContactService.submitContactForm({
-            name,
-            email,
-            phone: phone === undefined ? null : phone,
-            message
-        });
-        res.status(201).json({
-            message: "Contact form submitted successfully",
-            data: result
-        });
-    } catch (error) {
-        logger.error(`sendEmail - ${error}`);
-        res.status(500).json({ message: "Internal Server Error" });
-    }
-};
+class ContactController {
+    async sendEmail(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { name, email, phone, message } = req.body;
+            
+            if (!name || !email || !message) {
+                return res.status(400).json({
+                    message: "Name, email, and message are required"
+                });
+            }
 
-const getAllContacts = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const contacts = await ContactService.getAllContacts();
-        res.status(200).json({
-            message: "Contacts retrieved successfully",
-            data: contacts
-        });
-    } catch (error) {
-        logger.error(`getAllContacts - ${error}`);
-        next(error);
-    }
-};
+            const result = await ContactService.submitContactForm({
+                name,
+                email,
+                phone: phone || "",
+                message
+            });
 
-const getContactById = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const contactIdStr = req.params.id;
-        const contactId = Number(contactIdStr);
-        if (!contactIdStr || isNaN(contactId)) {
-            return res.status(400).json({ message: "Invalid contact id" });
+            res.status(200).json({
+                message: result.message,
+                data: result
+            });
+        } catch (err: any) {
+            if (err instanceof HttpException) {
+                return res.status(err.status).json({ message: err.message });
+            }
+            logger.error(`sendEmail - ${err}`);
+            next(err);
         }
-        const contact = await ContactService.getIdContact(contactId);
-        res.status(200).json({
-            message: "Contact retrieved successfully",
-            data: contact
-        });
-    } catch (error) {
-        logger.error(`getContactById - ${error}`);
-        next(error);
     }
-};
 
-const replyToContact = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const contactId = req.params.id;
-        const { replyMessage } = req.body;
-        // Assume req.user.id is available from authentication middleware
-        const replyByStr = req.user?.id;
-        if (!replyByStr) {
-            return res.status(401).json({ message: "Unauthorized" });
+    async getAllContacts(req: Request, res: Response, next: NextFunction) {
+        try {
+            const contacts = await ContactService.getAllContacts();
+            
+            // ✅ Return 200 dengan empty array jika tidak ada data (bukan 404)
+            if (!contacts || contacts.length === 0) {
+                return res.status(200).json({
+                    message: "No contacts found",
+                    data: []
+                });
+            }
+
+            res.status(200).json({
+                message: "Contacts retrieved successfully",
+                data: contacts
+            });
+        } catch (err: any) {
+            if (err instanceof HttpException) {
+                return res.status(err.status).json({ message: err.message });
+            }
+            logger.error(`getAllContacts - ${err}`);
+            next(err);
         }
-        const replyBy = Number(replyByStr);
-        if (isNaN(replyBy)) {
-            return res.status(400).json({ message: "Invalid user id" });
-        }
-        const reply = await ContactService.replyToContact(Number(contactId), replyMessage, replyBy);
-        res.status(200).json({
-            message: "Reply sent successfully",
-            data: reply
-        });
-    } catch (error) {
-        logger.error(`replyToContact - ${error}`);
-        next(error);
     }
-};
 
-const ContactController = {
-    sendEmail,
-    getAllContacts,
-    getContactById,
-    replyToContact
-};
+    async getContactById(req: Request, res: Response, next: NextFunction) {
+        try {
+            const contactIdStr = req.params.id;
+            const contactId = Number(contactIdStr);
+            
+            // ✅ Validate ID
+            if (!contactIdStr || isNaN(contactId)) {
+                return res.status(400).json({ 
+                    message: "Invalid contact ID" 
+                });
+            }
 
-export default ContactController;
+            const contact = await ContactService.getIdContact(contactId);
+
+            res.status(200).json({
+                message: "Contact retrieved successfully",
+                data: contact
+            });
+        } catch (err: any) {
+            // ✅ Handle HttpException dengan status code yang tepat
+            if (err instanceof HttpException) {
+                return res.status(err.status).json({ message: err.message });
+            }
+            logger.error(`getContactById - ${err}`);
+            next(err);
+        }
+    }
+
+    async replyToContact(req: Request, res: Response, next: NextFunction) {
+        try {
+            const contactIdStr = req.params.id;
+            const contactId = Number(contactIdStr);
+            const { replyMessage } = req.body;
+            const replyBy = (req as any).user?.id; // Dari JWT middleware
+
+            // ✅ Validate inputs
+            if (!contactIdStr || isNaN(contactId)) {
+                return res.status(400).json({ 
+                    message: "Invalid contact ID" 
+                });
+            }
+
+            if (!replyMessage) {
+                return res.status(400).json({ 
+                    message: "Reply message is required" 
+                });
+            }
+
+            if (!replyBy) {
+                return res.status(401).json({ 
+                    message: "Unauthorized" 
+                });
+            }
+
+            const result = await ContactService.replyToContact(
+                contactId,
+                replyMessage,
+                replyBy
+            );
+
+            res.status(200).json({
+                message: "Reply sent successfully",
+                data: result
+            });
+        } catch (err: any) {
+            // ✅ Handle HttpException dengan status code yang tepat
+            if (err instanceof HttpException) {
+                return res.status(err.status).json({ message: err.message });
+            }
+            logger.error(`replyToContact - ${err}`);
+            next(err);
+        }
+    }
+}
+
+export default new ContactController();
