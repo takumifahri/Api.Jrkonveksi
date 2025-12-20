@@ -8,7 +8,7 @@ const createCustomOrder = async (req: Request, res: Response, next: NextFunction
         if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
         const payload = { ...req.body, user_id: Number(userId) };
-        const created = await CustomOrderService.createCustomOrder(payload);
+        const created = await CustomOrderService.ajuanCustomOrder(payload);
         return res.status(201).json({
             message: "Custom Order created successfully",
             data: created
@@ -79,146 +79,10 @@ const getCustomOrderById = async (req: Request, res: Response, next: NextFunctio
     }
 };
 
-const updateCustomOrder = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const id = Number(req.params.id);
-        const payload = { ...req.body };
-        const updated = await CustomOrderService.updateCustomOrder(id, payload);
-        if (!updated) {
-            return res.json({
-                message: "No Data Found",
-                data: updated
-            });
-        }
-        return res.json({
-            message: "Updated Data Successfully",
-            data: updated
-        });
-    } catch (err: any) {
-        if (err instanceof HttpException) return res.status(err.status).json({ message: err.message });
-        next(err);
-    }
-};
-
-const deleteCustomOrder = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const id = Number(req.params.id);
-        const result = await CustomOrderService.deleteCustomOrder(id);
-        if (!result) {
-            return res.json({
-                message: "No Data Found",
-                data: result
-            });
-        }
-        return res.json({
-            message: "Deleted Data Successfully",
-            data: result
-        });
-    } catch (err: any) {
-        if (err instanceof HttpException) return res.status(err.status).json({ message: err.message });
-        next(err);
-    }
-};
-
-const softDeleteCustomOrder = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const id = Number(req.params.id);
-        const result = await CustomOrderService.softDeleteCustomOrder(id);
-        if (!result) {
-            return res.json({
-                message: "No Data Found",
-                data: result
-            });
-        }
-        return res.json({
-            message: "Soft Deleted Data Successfully",
-            data: result
-        });
-    } catch (err: any) {
-        if (err instanceof HttpException) return res.status(err.status).json({ message: err.message });
-        next(err);
-    }
-};
-
-const terimaCustomOrder = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const id = Number(req.params.id);
-        const adminId = req.user?.id;
-        if (!adminId) return res.status(401).json({ message: "Unauthorized" });
-        
-        const result = await CustomOrderService.terimaCustomOrder(id, adminId, req.body);
-        return res.json({
-            message: "Order berhasil diterima dan masuk tahap negosiasi",
-            data: result
-        });
-    } catch (err: any) {
-        if (err instanceof HttpException) return res.status(err.status).json({ message: err.message });
-        next(err);
-    }
-};
-
-const tolakCustomOrder = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const id = Number(req.params.id);
-        const adminId = req.user?.id;
-        if (!adminId) return res.status(401).json({ message: "Unauthorized" });
-        
-        const result = await CustomOrderService.tolakCustomOrder(id, adminId, req.body);
-        return res.json({
-            message: "Order berhasil ditolak",
-            data: result
-        });
-    } catch (err: any) {
-        if (err instanceof HttpException) return res.status(err.status).json({ message: err.message });
-        next(err);
-    }
-};
-
-const batalCustomOrder = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const id = Number(req.params.id);
-        const adminId = req.user?.id;
-        if (!adminId) return res.status(401).json({ message: "Unauthorized" });
-        
-        const result = await CustomOrderService.batalPemesanan(id, adminId, req.body);
-        return res.json({
-            message: "Order berhasil dibatalkan",
-            data: result
-        });
-    } catch (err: any) {
-        if (err instanceof HttpException) return res.status(err.status).json({ message: err.message });
-        next(err);
-    }
-};
-
-const dealNegosiasiCustomOrder = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const id = Number(req.params.id);
-        const adminId = req.user?.id;
-        if (!adminId) return res.status(401).json({ message: "Unauthorized" });
-        
-        const result = await CustomOrderService.dealNegosiasi(id, adminId, req.body);
-        return res.json({
-            message: "Negosiasi berhasil, order masuk tahap pengerjaan dan transaksi telah dibuat",
-            data: result
-        });
-    } catch (err: any) {
-        if (err instanceof HttpException) return res.status(err.status).json({ message: err.message });
-        next(err);
-    }
-};
-
 const customOrderController = {
     createCustomOrder,
     getAllCustomOrders,
     getCustomOrderById,
-    updateCustomOrder,
-    deleteCustomOrder,
-    softDeleteCustomOrder,
-    terimaCustomOrder,
-    tolakCustomOrder,
-    batalCustomOrder,
-    dealNegosiasiCustomOrder
 };
 
 export default customOrderController;

@@ -5,6 +5,7 @@ import material_router from './admin/materials.route.js';
 import admin_user_router from './admin/user.route.js';
 import custom_order_router from './user/custom_order.routes.js';
 import transaction_router from './user/transaction.routes.js';
+import custom_order_management_router from './admin/custom_order.management.routes.js';
 // import router lain di sini
 // import user_router from "./user/user.routes.js";
 // import material_router from "./material/material.routes.js";
@@ -48,10 +49,14 @@ const groupedRoutes: Record<string, RouteGroup> = {
             path: '/materials',
             router: material_router,
         },
-        user : {
+        user: {
             path: '/users',
             router: admin_user_router,
-        }
+        },
+        custom_order: {
+            path: '/orders/custom',
+            router: custom_order_management_router,
+        },
         // Tambahkan route admin lain di sini
     },
     // Tambahkan group lain seperti 'user', 'internal', 'apiV2' dsb. Contoh:
@@ -110,12 +115,12 @@ export const getRegisteredRoutes = (prefix: string = '/api'): string[] => {
 export const displayRoutes = (prefix: string = '/api'): void => {
     console.log('\n📋 Registered Routes:');
     console.log('─'.repeat(50));
-    
+
     Object.entries(routes).forEach(([name, route]) => {
         const fullPath = `${prefix}${route.path}`;
         console.log(`  ${name.padEnd(15)} → ${fullPath}`);
     });
-    
+
     console.log('─'.repeat(50));
     console.log(`Total: ${Object.keys(routes).length} route group(s)\n`);
 };

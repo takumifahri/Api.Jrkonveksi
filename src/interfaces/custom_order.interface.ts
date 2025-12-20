@@ -102,8 +102,7 @@ export interface batalPemesananRequest {
 }
 
 export interface ICustomOrderRepository {
-    createCustomOrder(data: createCustomOrderRequest): Promise<customOrderResponse>;
-    updateCustomOrder(id: number, data: updateCustomOrderRequest): Promise<customOrderResponse>;
+    ajuanCustomOrder(data: createCustomOrderRequest): Promise<customOrderResponse>;
     getAllCustomOrders(
         params?: {
             q?: string;
@@ -115,10 +114,28 @@ export interface ICustomOrderRepository {
         requester?: Requester
     ): Promise<customOrderResponse[]>;
     getCustomOrderById(id: number): Promise<customOrderResponse>;
+
+
+}
+
+export interface ICustomOrderManagementRepository {
+    createCustomOrder(data: createCustomOrderRequest): Promise<customOrderResponse>;
+    updateCustomOrder(id: number, data: updateCustomOrderRequest): Promise<customOrderResponse>;
     deleteCustomOrder(id: number): Promise<customOrderResponse>;
     softDeleteCustomOrder(id: number): Promise<customOrderResponse>;
+    getAllCustomOrders(
+        params?: {
+            q?: string;
+            page?: number;
+            limit?: number;
+            sortBy?: string;
+            sortOrder?: "asc" | "desc";
+        },
+        requester?: Requester
+    ): Promise<customOrderResponse[]>;
+    getCustomOrderById(id: number): Promise<customOrderResponse>;
 
-    // Update signature methods berikut agar sesuai dengan Service
+     // Update signature methods berikut agar sesuai dengan Service
     terimaCustomOrder(id: number, adminId: number, data: terimaCustomOrderRequest): Promise<customOrderResponse>;
     tolakCustomOrder(id: number, adminId: number, data: tolakCustomOrderRequest): Promise<customOrderResponse>;
     dealNegosiasi(id: number, adminId: number, data: dealNegosiasiRequest): Promise<customOrderResponse>;
