@@ -5,7 +5,8 @@ export interface createModelBajuRequest {
     nama: string;
     deskripsi?: string | null;
     material: string;
-    rentang_harga?: bigint | null;
+    harga_minimum?: bigint | null;
+    harga_maximum?: bigint | null;
     gambar_ref?: string | null;
     size?: any | null;
 }
@@ -14,18 +15,20 @@ export interface updateModelBajuRequest {
     nama?: string | null;
     deskripsi?: string | null;
     material?: string | null;
-    rentang_harga?: bigint | null;
+    harga_minimum?: bigint | null;
+    harga_maximum?: bigint | null;
     gambar_ref?: string | null;
     size?: any | null;
 }
 
 export interface modelBajuResponse {
     id: number;
-    uniqueId: string;
+    unique_id: string;
     nama: string;
     deskripsi: string | null;
     material: string;
-    rentang_harga: bigint | null;
+    harga_minimum?: bigint | null;
+    harga_maximum?: bigint | null;
     gambar_ref: string | null;
     size: any | null;
  

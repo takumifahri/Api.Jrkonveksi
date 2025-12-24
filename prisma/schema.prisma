@@ -217,9 +217,10 @@ model ModelBaju{
   nama              String   @db.VarChar(255)
   deskripsi         String?
   material          String
-  rentang_harga     BigInt? @default(0)
   gambar_ref        String?
   size              Json?
+  harga_minimum     BigInt?  @default(0)
+  harga_maximum     BigInt?  @default(0)
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

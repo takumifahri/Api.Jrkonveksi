@@ -1,6 +1,6 @@
 import logger, { logInfo, logError, logWarn, logAudit } from "../../utils/logger.js";
 import HttpException from "../../utils/HttpExecption.js";
-import validatorCustomOrder from "../../middleware/validaator/custom_order.validator.js";
+import validatorCustomOCLASSrder from "../../middleware/validaator/custom_order.validator.js";
 import type {
     createCustomOrderRequest,
     updateCustomOrderRequest,
