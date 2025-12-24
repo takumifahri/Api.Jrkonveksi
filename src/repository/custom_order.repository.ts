@@ -5,22 +5,23 @@ import type {
     createCustomOrderRequest,
     customOrderResponse,
     updateCustomOrderRequest,
+    ICustomOrderInterface
 } from "../interfaces/custom_order.interface.js";
 
-export interface ICustomOrderRepository {
-    getAllCustomOrders(): Promise<customOrderResponse[]>;
-    getCustomOrderById(id: number): Promise<customOrderResponse>;
-    findCustomOrder(opts: {
-        where?: any;
-        skip?: number;
-        take?: number;
-        orderBy?: any;
-    }): Promise<customOrderResponse[]>;
-    ajuanCustomOrder(data: createCustomOrderRequest): Promise<customOrderResponse>;
+// export interface ICustomOrderRepository {
+//     getAllCustomOrders(): Promise<customOrderResponse[]>;
+//     getCustomOrderById(id: number): Promise<customOrderResponse>;
+//     findCustomOrder(opts: {
+//         where?: any;
+//         skip?: number;
+//         take?: number;
+//         orderBy?: any;
+//     }): Promise<customOrderResponse[]>;
+//     ajuanCustomOrder(data: createCustomOrderRequest): Promise<customOrderResponse>;
 
-}
+// }
 
-export class CustomOrderRepository implements ICustomOrderRepository {
+export class CustomOrderRepository implements ICustomOrderInterface {
     async findCustomOrder(opts: { where?: any; skip?: number; take?: number; orderBy?: any; }): Promise<customOrderResponse[]> {
         const args: any = {
             where: opts.where ?? undefined

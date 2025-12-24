@@ -147,7 +147,7 @@ const terimaCustomOrder = async (req: Request, res: Response, next: NextFunction
         const adminId = req.user?.id;
         if (!adminId) return res.status(401).json({ message: "Unauthorized" });
         
-        const result = await custom_orderManagementService.terimaCustomOrder(id, adminId, req.body);
+        const result = await custom_orderManagementService.terimaCustomOrder(id, { admin_id: adminId });
         return res.json({
             message: "Order berhasil diterima dan masuk tahap negosiasi",
             data: result
@@ -164,7 +164,15 @@ const tolakCustomOrder = async (req: Request, res: Response, next: NextFunction)
         const adminId = req.user?.id;
         if (!adminId) return res.status(401).json({ message: "Unauthorized" });
         
-        const result = await custom_orderManagementService.tolakCustomOrder(id, adminId, req.body);
+        const { alasan_ditolak } = req.body;
+        if (!alasan_ditolak) {
+            return res.status(400).json({ message: "alasan_ditolak is required" });
+        }
+        
+        const result = await custom_orderManagementService.tolakCustomOrder(id, { 
+            admin_id: adminId,
+            alasan_ditolak 
+        });
         return res.json({
             message: "Order berhasil ditolak",
             data: result
@@ -181,7 +189,12 @@ const batalCustomOrder = async (req: Request, res: Response, next: NextFunction)
         const adminId = req.user?.id;
         if (!adminId) return res.status(401).json({ message: "Unauthorized" });
         
-        const result = await custom_orderManagementService.batalPemesanan(id, adminId, req.body);
+        const { alasan_ditolak } = req.body;
+        
+        const result = await custom_orderManagementService.batalPemesanan(id, { 
+            admin_id: adminId,
+            alasan_ditolak: alasan_ditolak || null
+        });
         return res.json({
             message: "Order berhasil dibatalkan",
             data: result
@@ -198,7 +211,15 @@ const dealNegosiasiCustomOrder = async (req: Request, res: Response, next: NextF
         const adminId = req.user?.id;
         if (!adminId) return res.status(401).json({ message: "Unauthorized" });
         
-        const result = await custom_orderManagementService.dealNegosiasi(id, adminId, req.body);
+        const { total_harga } = req.body;
+        if (!total_harga) {
+            return res.status(400).json({ message: "total_harga is required" });
+        }
+        
+        const result = await custom_orderManagementService.dealNegosiasi(id, { 
+            admin_id: adminId,
+            total_harga: BigInt(total_harga)
+        });
         return res.json({
             message: "Negosiasi berhasil, order masuk tahap pengerjaan dan transaksi telah dibuat",
             data: result
@@ -208,6 +229,7 @@ const dealNegosiasiCustomOrder = async (req: Request, res: Response, next: NextF
         next(err);
     }
 };
+
 
 const customOrderManagementController = {
     createCustomOrder,

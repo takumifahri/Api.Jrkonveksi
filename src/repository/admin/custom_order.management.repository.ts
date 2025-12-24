@@ -2,24 +2,17 @@ import type {
     createCustomOrderRequest,
     customOrderResponse,
     updateCustomOrderRequest,
+    ICustomOrderManagementInterface,
+    batalPemesananRequest,
+    dealNegosiasiRequest,
+    tolakCustomOrderRequest,
+    terimaCustomOrderRequest
 } from "../../interfaces/custom_order.interface.js";
 import { prisma } from "../../config/prisma.config.js";
 import { UkuranBaju } from "../../interfaces/custom_order.interface.js";
 import { StatusPembayaran, StatusPemesanan } from "../../../generated/prisma/enums.js";
 
-export interface IAdminCustomOrderManagementRepository {
-    createCustomOrder(data: createCustomOrderRequest): Promise<customOrderResponse>;
-    updateCustomOrder(id: number, data: updateCustomOrderRequest): Promise<customOrderResponse>;
-    deleteCustomOrder(id: number): Promise<customOrderResponse>;
-    softDeleteCustomOrder(id: number): Promise<customOrderResponse>;
-
-    terimaCustomOrder(id: number, adminId: number): Promise<customOrderResponse>;
-    tolakCustomOrder(id: number, adminId: number, alasanDitolak: string): Promise<customOrderResponse>;
-    dealNegosiasi(id: number, adminId: number, totalHarga: bigint): Promise<customOrderResponse>;
-    batalPemesanan(id: number, adminId: number, alasanDitolak?: string): Promise<customOrderResponse>;
-}
-
-export class CustomOrderManagementRepository implements IAdminCustomOrderManagementRepository {
+export class CustomOrderManagementRepository implements ICustomOrderManagementInterface {
      async findCustomOrder(opts: { where?: any; skip?: number; take?: number; orderBy?: any; }): Promise<customOrderResponse[]> {
         const args: any = {
             where: opts.where ?? undefined
@@ -140,12 +133,12 @@ export class CustomOrderManagementRepository implements IAdminCustomOrderManagem
     }
 
     // Terima: status "setuju" -> NEGOSIASI + admin_id + waktu_terima
-    async terimaCustomOrder(id: number, adminId: number): Promise<customOrderResponse> {
+    async terimaCustomOrder(id: number, data: terimaCustomOrderRequest): Promise<customOrderResponse> {
         const result = await prisma.pemesananKonveksi.update({
             where: { id },
             data: {
                 status: StatusPemesanan.NEGOSIASI,
-                admin_id: adminId,
+                admin_id: data.admin_id,
                 waktu_terima: new Date()
             }
         });
@@ -159,14 +152,14 @@ export class CustomOrderManagementRepository implements IAdminCustomOrderManagem
     }
 
     // Tolak: status "ditolak" -> DITOLAK + admin_id + waktu_tolak + alasan
-    async tolakCustomOrder(id: number, adminId: number, alasanDitolak: string): Promise<customOrderResponse> {
+    async tolakCustomOrder(id: number, data: tolakCustomOrderRequest): Promise<customOrderResponse> {
         const result = await prisma.pemesananKonveksi.update({
             where: { id },
             data: {
                 status: StatusPemesanan.DITOLAK,
-                admin_id: adminId,
+                admin_id: data.admin_id,
                 waktu_tolak: new Date(),
-                alasan_ditolak: alasanDitolak
+                alasan_ditolak: data.alasan_ditolak
             }
         });
         const ukuranMapped = (UkuranBaju as any)[result.ukuran as keyof typeof UkuranBaju] ?? result.ukuran;
@@ -177,14 +170,14 @@ export class CustomOrderManagementRepository implements IAdminCustomOrderManagem
     }
 
     // Deal: status "deal" -> PENGERJAAN + total_harga + create Transaction
-    async dealNegosiasi(id: number, adminId: number, totalHarga: bigint): Promise<customOrderResponse> {
+    async dealNegosiasi(id: number, data: dealNegosiasiRequest): Promise<customOrderResponse> {
         // Update pemesanan ke PENGERJAAN
         const result = await prisma.pemesananKonveksi.update({
             where: { id },
             data: {
                 status: StatusPemesanan.PENGERJAAN,
-                total_harga: totalHarga,
-                admin_id: adminId
+                total_harga: data.total_harga,
+                admin_id: data.admin_id
             }
         });
 
@@ -197,8 +190,8 @@ export class CustomOrderManagementRepository implements IAdminCustomOrderManagem
                 custom_order_id: id,
                 status: StatusPembayaran.BELUM_BAYAR,
                 user_id: result.user_id,
-                total_harga: totalHarga,
-                admin_id: adminId,
+                total_harga: data.total_harga,
+                admin_id: data.admin_id,
             }
         });
 
@@ -210,13 +203,13 @@ export class CustomOrderManagementRepository implements IAdminCustomOrderManagem
     }
 
     // Batal: status "dibatalkan" -> DIBATALKAN + admin_id + alasan (optional)
-    async batalPemesanan(id: number, adminId: number, alasanDitolak?: string): Promise<customOrderResponse> {
+    async batalPemesanan(id: number, data: batalPemesananRequest): Promise<customOrderResponse> {
         const result = await prisma.pemesananKonveksi.update({
             where: { id },
             data: {
                 status: StatusPemesanan.DIBATALKAN,
-                admin_id: adminId,
-                alasan_ditolak: alasanDitolak ?? null
+                admin_id: data.admin_id,
+                alasan_ditolak: data.alasan_ditolak ?? null
             }
         });
         const ukuranMapped = (UkuranBaju as any)[result.ukuran as keyof typeof UkuranBaju] ?? result.ukuran;

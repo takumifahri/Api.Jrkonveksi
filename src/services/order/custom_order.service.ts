@@ -9,7 +9,7 @@ import type {
     tolakCustomOrderRequest,
     dealNegosiasiRequest,
     batalPemesananRequest,
-    ICustomOrderRepository
+    ICustomOrderInterface
 } from "../../interfaces/custom_order.interface.js";
 
 import { CustomOrderRepository } from "../../repository/custom_order.repository.js";
@@ -17,7 +17,7 @@ import type { Requester } from "../../interfaces/auth.interface.js";
 import MailerService from "../mailer.service.js";
 import { prisma } from "../../config/prisma.config.js";
 
-export class CustomOrderService implements ICustomOrderRepository {
+export class CustomOrderService implements ICustomOrderInterface {
     private customOrderRepo = new CustomOrderRepository();
 
     async ajuanCustomOrder(data: createCustomOrderRequest): Promise<customOrderResponse> {

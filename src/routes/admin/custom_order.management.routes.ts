@@ -208,6 +208,58 @@ custom_order_management_router.delete("/:id", customOrderManagementController.de
 
 /**
  * @openapi
+ * /api/admin/orders/custom/{id}/soft-delete:
+ *   patch:
+ *     tags:
+ *       - Custom Orders (Admin)
+ *     summary: Soft delete custom order (Admin)
+ *     description: |
+ *       Menandai custom order sebagai dihapus tanpa menghapus data dari database (soft delete).
+ *       Data tetap tersimpan dan dapat dikembalikan jika diperlukan.
+ *       
+ *       **Proses:**
+ *       - Menandai order sebagai deleted (misalnya set deletedAt timestamp)
+ *       - Data tidak hilang dari database
+ *       - Audit log tercatat
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Custom Order ID
+ *     responses:
+ *       200:
+ *         description: Order berhasil di-soft delete
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Custom order soft deleted successfully"
+ *                 data:
+ *                   $ref: '#/components/schemas/CustomOrder'
+ *       404:
+ *         description: Order not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+custom_order_management_router.patch("/:id/soft-delete", customOrderManagementController.softDeleteCustomOrder);
+
+/**
+ * @openapi
  * /api/admin/orders/custom/{id}/accept:
  *   patch:
  *     tags:

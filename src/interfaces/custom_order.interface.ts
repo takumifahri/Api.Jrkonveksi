@@ -1,14 +1,14 @@
 import type { Requester } from "./auth.interface.js";
 
 export enum UkuranBaju {
-  EXTRA_SMALL = 'extra_small',
-  SMALL = 'small',
-  MEDIUM = 'medium',
-  REGULER = 'reguler',
-  LARGE = 'large',
-  EXTRA_LARGE = 'extra_large',
-  DOUBLE_EXTRA_LARGE = 'double_extra_large',
-  CUSTOM = 'custom',
+    EXTRA_SMALL = 'extra_small',
+    SMALL = 'small',
+    MEDIUM = 'medium',
+    REGULER = 'reguler',
+    LARGE = 'large',
+    EXTRA_LARGE = 'extra_large',
+    DOUBLE_EXTRA_LARGE = 'double_extra_large',
+    CUSTOM = 'custom',
 }
 
 export enum StatusPemesanan {
@@ -83,25 +83,25 @@ export interface customOrderResponse {
 
 // Simplified request interfaces - hanya payload minimal dari user
 export interface terimaCustomOrderRequest {
-    status: "setuju";
+    admin_id: number;
 }
 
 export interface tolakCustomOrderRequest {
-    status: "ditolak";
+    admin_id: number;
     alasan_ditolak: string;
 }
 
 export interface dealNegosiasiRequest {
-    status: "deal";
+    admin_id: number;
     total_harga: bigint;
 }
 
 export interface batalPemesananRequest {
-    status: "dibatalkan";
-    alasan_ditolak?: string | null;
+    admin_id: number;
+    alasan_ditolak?: string | null |undefined;
 }
 
-export interface ICustomOrderRepository {
+export interface ICustomOrderInterface {
     ajuanCustomOrder(data: createCustomOrderRequest): Promise<customOrderResponse>;
     getAllCustomOrders(
         params?: {
@@ -118,11 +118,7 @@ export interface ICustomOrderRepository {
 
 }
 
-export interface ICustomOrderManagementRepository {
-    createCustomOrder(data: createCustomOrderRequest): Promise<customOrderResponse>;
-    updateCustomOrder(id: number, data: updateCustomOrderRequest): Promise<customOrderResponse>;
-    deleteCustomOrder(id: number): Promise<customOrderResponse>;
-    softDeleteCustomOrder(id: number): Promise<customOrderResponse>;
+export interface ICustomOrderManagementInterface {
     getAllCustomOrders(
         params?: {
             q?: string;
@@ -134,10 +130,13 @@ export interface ICustomOrderManagementRepository {
         requester?: Requester
     ): Promise<customOrderResponse[]>;
     getCustomOrderById(id: number): Promise<customOrderResponse>;
+    createCustomOrder(data: createCustomOrderRequest): Promise<customOrderResponse>;
+    updateCustomOrder(id: number, data: updateCustomOrderRequest): Promise<customOrderResponse>;
+    deleteCustomOrder(id: number): Promise<customOrderResponse>;
+    softDeleteCustomOrder(id: number): Promise<customOrderResponse>;
 
-     // Update signature methods berikut agar sesuai dengan Service
-    terimaCustomOrder(id: number, adminId: number, data: terimaCustomOrderRequest): Promise<customOrderResponse>;
-    tolakCustomOrder(id: number, adminId: number, data: tolakCustomOrderRequest): Promise<customOrderResponse>;
-    dealNegosiasi(id: number, adminId: number, data: dealNegosiasiRequest): Promise<customOrderResponse>;
-    batalPemesanan(id: number, adminId: number, data: batalPemesananRequest): Promise<customOrderResponse>;
+    terimaCustomOrder(id: number, data: terimaCustomOrderRequest): Promise<customOrderResponse>;
+    tolakCustomOrder(id: number, data: tolakCustomOrderRequest): Promise<customOrderResponse>;
+    dealNegosiasi(id: number, data: dealNegosiasiRequest): Promise<customOrderResponse>;
+    batalPemesanan(id: number, data: batalPemesananRequest): Promise<customOrderResponse>;
 }

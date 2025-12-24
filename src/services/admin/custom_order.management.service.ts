@@ -9,14 +9,14 @@ import type {
     tolakCustomOrderRequest,
     dealNegosiasiRequest,
     batalPemesananRequest,
-    ICustomOrderManagementRepository
+    ICustomOrderManagementInterface
 } from "../../interfaces/custom_order.interface.js";
 
 import type { Requester } from "../../interfaces/auth.interface.js";
 import MailerService from "../mailer.service.js";
 import { CustomOrderManagementRepository } from "../../repository/admin/custom_order.management.repository.js";
 
-class CustomOrderManagement implements ICustomOrderManagementRepository {
+class CustomOrderManagement implements ICustomOrderManagementInterface {
     private customOrderManagementRepo = new CustomOrderManagementRepository();
 
     async createCustomOrder(data: createCustomOrderRequest): Promise<customOrderResponse> {
@@ -312,27 +312,18 @@ class CustomOrderManagement implements ICustomOrderManagementRepository {
         }
     }
 
-    async terimaCustomOrder(id: number, adminId: number, data: terimaCustomOrderRequest): Promise<customOrderResponse> {
-        // Validate with Zod schema
-        const parsed = validatorCustomOrder.terimaSchema.safeParse(data);
-        if (!parsed.success) {
-            logger.warn("terimaCustomOrder validation failed", { issues: parsed.error.issues });
-            const message = parsed.error.issues
-                .map(i => `${i.path.join('.') || '<root>'}: ${i.message}`)
-                .join('; ');
-            throw new HttpException(400, message);
-        }
 
+    async terimaCustomOrder(id: number, data: terimaCustomOrderRequest): Promise<customOrderResponse> {
         try {
-            const result = await this.customOrderManagementRepo.terimaCustomOrder(id, adminId);
+            const result = await this.customOrderManagementRepo.terimaCustomOrder(id, data);
 
             logAudit("CUSTOM_ORDER_ACCEPTED", {
                 order_id: id,
-                admin_id: adminId
+                admin_id: data.admin_id
             });
             logInfo("Custom order accepted successfully", {
                 order_id: id,
-                admin_id: adminId
+                admin_id: data.admin_id
             });
 
             return result;
@@ -351,7 +342,7 @@ class CustomOrderManagement implements ICustomOrderManagementRepository {
             // Unexpected errors
             logger.error("Unexpected error accepting custom order", {
                 id,
-                admin_id: adminId,
+                admin_id: data.admin_id,
                 message: err?.message,
                 stack: err?.stack
             });
@@ -359,7 +350,7 @@ class CustomOrderManagement implements ICustomOrderManagementRepository {
         }
     }
 
-    async tolakCustomOrder(id: number, adminId: number, data: tolakCustomOrderRequest): Promise<customOrderResponse> {
+    async tolakCustomOrder(id: number, data: tolakCustomOrderRequest): Promise<customOrderResponse> {
         // Validate with Zod schema
         const parsed = validatorCustomOrder.tolakSchema.safeParse(data);
         if (!parsed.success) {
@@ -371,16 +362,16 @@ class CustomOrderManagement implements ICustomOrderManagementRepository {
         }
 
         try {
-            const result = await this.customOrderManagementRepo.tolakCustomOrder(id, adminId, parsed.data.alasan_ditolak);
+            const result = await this.customOrderManagementRepo.tolakCustomOrder(id, parsed.data);
 
             logAudit("CUSTOM_ORDER_REJECTED", {
                 order_id: id,
-                admin_id: adminId,
+                admin_id: parsed.data.admin_id,
                 alasan_ditolak: parsed.data.alasan_ditolak
             });
             logInfo("Custom order rejected successfully", {
                 order_id: id,
-                admin_id: adminId
+                admin_id: parsed.data.admin_id
             });
 
             return result;
@@ -399,7 +390,7 @@ class CustomOrderManagement implements ICustomOrderManagementRepository {
             // Unexpected errors
             logger.error("Unexpected error rejecting custom order", {
                 id,
-                admin_id: adminId,
+                admin_id: parsed.data.admin_id,
                 message: err?.message,
                 stack: err?.stack
             });
@@ -407,7 +398,7 @@ class CustomOrderManagement implements ICustomOrderManagementRepository {
         }
     }
 
-    async dealNegosiasi(id: number, adminId: number, data: dealNegosiasiRequest): Promise<customOrderResponse> {
+    async dealNegosiasi(id: number, data: dealNegosiasiRequest): Promise<customOrderResponse> {
         // Validate with Zod schema
         const parsed = validatorCustomOrder.dealNegosiasiSchema.safeParse(data);
         if (!parsed.success) {
@@ -419,16 +410,16 @@ class CustomOrderManagement implements ICustomOrderManagementRepository {
         }
 
         try {
-            const result = await this.customOrderManagementRepo.dealNegosiasi(id, adminId, parsed.data.total_harga);
+            const result = await this.customOrderManagementRepo.dealNegosiasi(id, parsed.data);
 
             logAudit("CUSTOM_ORDER_NEGOTIATION_DEAL", {
                 order_id: id,
-                admin_id: adminId,
+                admin_id: parsed.data.admin_id,
                 total_harga: parsed.data.total_harga
             });
             logInfo("Custom order negotiation deal completed successfully", {
                 order_id: id,
-                admin_id: adminId,
+                admin_id: parsed.data.admin_id,
                 total_harga: parsed.data.total_harga
             });
 
@@ -448,7 +439,7 @@ class CustomOrderManagement implements ICustomOrderManagementRepository {
             // Unexpected errors
             logger.error("Unexpected error dealing negotiation", {
                 id,
-                admin_id: adminId,
+                admin_id: parsed.data.admin_id,
                 message: err?.message,
                 stack: err?.stack
             });
@@ -456,7 +447,7 @@ class CustomOrderManagement implements ICustomOrderManagementRepository {
         }
     }
 
-    async batalPemesanan(id: number, adminId: number, data: batalPemesananRequest): Promise<customOrderResponse> {
+    async batalPemesanan(id: number, data: batalPemesananRequest): Promise<customOrderResponse> {
         // Validate with Zod schema
         const parsed = validatorCustomOrder.batalPemesananSchema.safeParse(data);
         if (!parsed.success) {
@@ -468,16 +459,16 @@ class CustomOrderManagement implements ICustomOrderManagementRepository {
         }
 
         try {
-            const result = await this.customOrderManagementRepo.batalPemesanan(id, adminId, parsed.data.alasan_ditolak ?? undefined);
+            const result = await this.customOrderManagementRepo.batalPemesanan(id, parsed.data);
 
             logAudit("CUSTOM_ORDER_CANCELLED", {
                 order_id: id,
-                admin_id: adminId,
+                admin_id: parsed.data.admin_id,
                 alasan_ditolak: parsed.data.alasan_ditolak
             });
             logInfo("Custom order cancelled successfully", {
                 order_id: id,
-                admin_id: adminId
+                admin_id: parsed.data.admin_id
             });
 
             return result;
@@ -496,7 +487,7 @@ class CustomOrderManagement implements ICustomOrderManagementRepository {
             // Unexpected errors
             logger.error("Unexpected error cancelling custom order", {
                 id,
-                admin_id: adminId,
+                admin_id: parsed.data.admin_id,
                 message: err?.message,
                 stack: err?.stack
             });

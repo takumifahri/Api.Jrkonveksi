@@ -218,6 +218,8 @@ model ModelBaju{
   deskripsi         String?
   material          String
   rentang_harga     BigInt? @default(0)
+  gambar_ref        String?
+  size              Json?
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

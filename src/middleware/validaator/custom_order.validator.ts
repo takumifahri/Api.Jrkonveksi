@@ -30,31 +30,30 @@ const createSchema = z.object({
   model_baju_id: z.number().int().optional().nullable(),
   referensi_custom: z.boolean().optional(),
   file_referensi_custom: z.array(z.string().url()).optional().nullable()
-
 });
 
 const updateSchema = createSchema.partial();
 
 const terimaSchema = z.object({
-  status: z.literal("setuju")
+  admin_id: z.number().int().positive("admin_id must be a positive integer")
 });
 
 const tolakSchema = z.object({
-  status: z.literal("ditolak"),
-  alasan_ditolak: z.string().min(1)
+  admin_id: z.number().int().positive("admin_id must be a positive integer"),
+  alasan_ditolak: z.string().min(1, "alasan_ditolak is required")
 });
 
 const dealNegosiasiSchema = z.object({
-  status: z.literal("deal"),
+  admin_id: z.number().int().positive("admin_id must be a positive integer"),
   total_harga: z.union([
     z.string().transform((val) => BigInt(val)),
     z.number().transform((val) => BigInt(val)),
     z.bigint()
-  ])
+  ]).refine((val) => val > 0n, { message: "total_harga must be positive" })
 });
 
 const batalPemesananSchema = z.object({
-  status: z.literal("dibatalkan"),
+  admin_id: z.number().int().positive("admin_id must be a positive integer"),
   alasan_ditolak: z.string().optional().nullable()
 });
 
