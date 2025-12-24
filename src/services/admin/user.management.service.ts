@@ -7,22 +7,19 @@ import type {
 
 import { prisma } from '../../config/prisma.config.js'
 import HttpException from '../../utils/HttpExecption.js'
-import JWTUtils from '../../utils/jwt.js'
 import logger from '../../utils/logger.js'
-import * as jwt from 'jsonwebtoken'
 
 import { UserManagementRepository } from '../../repository/admin/user.management.repository.js'
 import { PasswordUtils } from '../../utils/password.utils.js'
+import CacheService, { CACHE_TTL, CACHE_KEY } from '../cache.service.js'
 
 class UserManagementService implements IUserManagementRepository {
     private userRepository = new UserManagementRepository();
 
-    // CRUD
     async createUser(request: createUserRequest): Promise<UserResponse> {
         const { name, email, password, confirmPassword, role, phone, address, is_blocked, is_verified } = request;
 
         try {
-            // Check if email already exists
             const emailExists = await this.userRepository.checkEmailExists(email);
             if (emailExists) {
                 throw new HttpException(400, 'Email already exists');
@@ -40,13 +37,10 @@ class UserManagementService implements IUserManagementRepository {
                 throw new HttpException(400, 'Name exceeds maximum length of 255 characters');
             }
 
-            // Get user Role
-
             const hashedPassword = await PasswordUtils.hashPassword(password);
 
-            // determine roleId: accept numeric role (role id) or fallback to default 'user' role id
             let assignedRoleId: number;
-            if (role !== undefined && role !== null && role !== null) {
+            if (role !== undefined && role !== null) {
                 const parsedId = typeof role === 'number' ? role : Number(role);
                 if (Number.isNaN(parsedId)) {
                     throw new HttpException(400, 'Invalid role id');
@@ -63,6 +57,7 @@ class UserManagementService implements IUserManagementRepository {
                 }
                 assignedRoleId = defaultRole.id;
             }
+
             const uniqueGenerator = `USER-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
             const newUser = await this.userRepository.createUser({
                 unique_id: uniqueGenerator,
@@ -75,6 +70,9 @@ class UserManagementService implements IUserManagementRepository {
                 is_blocked: is_blocked || false,
                 is_verified: is_verified || false,
             });
+
+            // ✅ Invalidate users list cache
+            CacheService.deletePattern('users:all');
 
             const resultData: UserResponse = {
                 id: newUser.id,
@@ -110,15 +108,22 @@ class UserManagementService implements IUserManagementRepository {
         order?: 'asc' | 'desc'
     }): Promise<UserResponse[]> {
         try {
+            // ✅ Generate cache key based on params
+            const cacheKey = `users:all:${JSON.stringify(params)}`;
+            const cached = CacheService.get<UserResponse[]>(cacheKey);
+            
+            if (cached) {
+                logger.info('Users retrieved from cache', { count: cached.length });
+                return cached;
+            }
+
             const where: any = {}
 
             if (params?.q) {
                 const q = String(params.q).trim()
                 if (q.includes('@')) {
-                    // If q looks like an email, do case-insensitive exact match
                     where.email = { equals: q, mode: 'insensitive' }
                 } else {
-                    // general text search across name / email / phone
                     where.OR = [
                         { name: { contains: q, mode: 'insensitive' } },
                         { email: { contains: q, mode: 'insensitive' } },
@@ -176,7 +181,6 @@ class UserManagementService implements IUserManagementRepository {
                 role: u.role,
                 phone: u.phone,
                 address: u.address,
-                // use prisma field names (adjust if your schema differs)
                 is_blocked: u.is_blocked ?? u.isBlocked ?? false,
                 is_verified: u.is_verified ?? false,
                 createdAt: u.createdAt,
@@ -184,6 +188,10 @@ class UserManagementService implements IUserManagementRepository {
                 deletedAt: u.deletedAt ?? u.deleteAt ?? null,
             }))
 
+            // ✅ Cache for 5 minutes
+            CacheService.set(cacheKey, result, CACHE_TTL.FREQUENT.USER_PROFILE);
+
+            logger.info('Users retrieved from database and cached', { count: result.length });
             return result
         } catch (error) {
             logger.error('Error fetching all users with params', { error, params })
@@ -193,10 +201,24 @@ class UserManagementService implements IUserManagementRepository {
 
     async getUserById(id: number): Promise<UserResponse> {
         try {
+            // ✅ Try cache first
+            const cacheKey = CACHE_KEY.USER(id);
+            const cached = CacheService.get<UserResponse>(cacheKey);
+            
+            if (cached) {
+                logger.info('User retrieved from cache', { user_id: id });
+                return cached;
+            }
+
             const user = await this.userRepository.getUserById(id);
             if (!user) {
                 throw new HttpException(404, 'User not found');
             }
+
+            // ✅ Cache for 5 minutes
+            CacheService.set(cacheKey, user, CACHE_TTL.FREQUENT.USER_PROFILE);
+
+            logger.info('User retrieved from database and cached', { user_id: id });
             return user;
         } catch (error) {
             logger.error('Error fetching user by id', { error });
@@ -210,6 +232,12 @@ class UserManagementService implements IUserManagementRepository {
             if (!user) {
                 throw new HttpException(404, 'User not found');
             }
+
+            // ✅ Invalidate caches
+            CacheService.delete(CACHE_KEY.USER(id));
+            CacheService.deletePattern('users:all');
+
+            logger.info('User updated and cache invalidated', { user_id: id });
             return user;
         } catch (error) {
             logger.error('Error updating user', { error });
@@ -223,6 +251,12 @@ class UserManagementService implements IUserManagementRepository {
             if (!user) {
                 throw new HttpException(404, 'User not found');
             }
+
+            // ✅ Invalidate caches
+            CacheService.delete(CACHE_KEY.USER(id));
+            CacheService.deletePattern('users:all');
+
+            logger.info('User deleted and cache invalidated', { user_id: id });
             return user;
         } catch (error) {
             logger.error('Error deleting user', { error });
@@ -236,9 +270,13 @@ class UserManagementService implements IUserManagementRepository {
             if (!user) {
                 throw new HttpException(404, 'User not found');
             }
-            return {
-                user
-            };
+
+            // ✅ Invalidate caches
+            CacheService.delete(CACHE_KEY.USER(id));
+            CacheService.deletePattern('users:all');
+
+            logger.info('User soft deleted and cache invalidated', { user_id: id });
+            return { user };
         } catch (error) {
             logger.error('Error soft deleting user', { error });
             throw new HttpException(500, 'Internal server error');
@@ -251,6 +289,12 @@ class UserManagementService implements IUserManagementRepository {
             if (!user) {
                 throw new HttpException(404, 'User not found');
             }
+
+            // ✅ Invalidate caches (user status changed)
+            CacheService.delete(CACHE_KEY.USER(id));
+            CacheService.deletePattern('users:all');
+
+            logger.info('User blocked and cache invalidated', { user_id: id });
             return user;
         } catch (error) {
             logger.error('Error blocking user', { error });
@@ -264,6 +308,12 @@ class UserManagementService implements IUserManagementRepository {
             if (!user) {
                 throw new HttpException(404, 'User not found');
             }
+
+            // ✅ Invalidate caches (user status changed)
+            CacheService.delete(CACHE_KEY.USER(id));
+            CacheService.deletePattern('users:all');
+
+            logger.info('User unblocked and cache invalidated', { user_id: id });
             return user;
         } catch (error) {
             logger.error('Error unblocking user', { error });
@@ -272,4 +322,4 @@ class UserManagementService implements IUserManagementRepository {
     }
 }
 
-export default new UserManagementService()
+export default new UserManagementService();

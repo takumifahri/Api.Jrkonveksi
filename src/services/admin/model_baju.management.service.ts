@@ -9,6 +9,7 @@ import type {
 } from "../../interfaces/model_baju.interface.js";
 import { ModelBajuRepository } from "../../repository/admin/model_baju.repository.js";
 import type { Requester } from "../../interfaces/auth.interface.js";
+import CacheService, { CACHE_TTL } from "../cache.service.js";
 
 class ModelBajuManagementService implements IModelBajuInterface {
     private modelBajuRepository = new ModelBajuRepository();
@@ -24,9 +25,21 @@ class ModelBajuManagementService implements IModelBajuInterface {
         requester?: Requester
     ): Promise<modelBajuResponse[]> {
         try {
+            // ✅ Generate cache key
+            const cacheKey = `model_baju:all:${JSON.stringify(params)}`;
+            const cached = CacheService.get<modelBajuResponse[]>(cacheKey);
+            
+            if (cached) {
+                logInfo("Model baju retrieved from cache", { count: cached.length });
+                return cached;
+            }
+
             const result = await this.modelBajuRepository.getAllModelBaju(params, requester);
 
-            logInfo("Model baju retrieved successfully", {
+            // ✅ Cache for 15 minutes (rarely changes)
+            CacheService.set(cacheKey, result, CACHE_TTL.MODERATE.MODEL_BAJU_LIST);
+
+            logInfo("Model baju retrieved from database and cached", {
                 count: result.length,
                 limit: params?.limit,
                 offset: params?.offset
@@ -34,12 +47,10 @@ class ModelBajuManagementService implements IModelBajuInterface {
 
             return result;
         } catch (err: any) {
-            // Re-throw HttpException as-is
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Unexpected errors
             logger.error("Unexpected error fetching model baju", {
                 message: err?.message,
                 stack: err?.stack,
@@ -51,24 +62,32 @@ class ModelBajuManagementService implements IModelBajuInterface {
 
     async getModelBajuById(id: number): Promise<modelBajuResponse> {
         try {
+            // ✅ Try cache first
+            const cacheKey = `model_baju:${id}`;
+            const cached = CacheService.get<modelBajuResponse>(cacheKey);
+            
+            if (cached) {
+                logInfo("Model baju retrieved from cache", { id });
+                return cached;
+            }
+
             const result = await this.modelBajuRepository.getModelBajuById(id);
 
-            // Check if model baju exists
             if (!result) {
                 logger.warn("Model baju not found", { id });
                 throw new HttpException(404, "Model baju not found");
             }
 
-            logInfo("Model baju retrieved successfully", { id });
+            // ✅ Cache for 15 minutes
+            CacheService.set(cacheKey, result, CACHE_TTL.MODERATE.MODEL_BAJU_LIST);
 
+            logInfo("Model baju retrieved from database and cached", { id });
             return result;
         } catch (err: any) {
-            // Re-throw HttpException as-is (preserve status code)
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Unexpected errors
             logger.error("Unexpected error fetching model baju by id", {
                 id,
                 message: err?.message,
@@ -79,7 +98,6 @@ class ModelBajuManagementService implements IModelBajuInterface {
     }
 
     async createModelBaju(data: createModelBajuRequest): Promise<modelBajuResponse> {
-        // Validate with Zod schema
         const parsed = validatorModelBaju.createSchema.safeParse(data);
         if (!parsed.success) {
             logger.warn("createModelBaju validation failed", { issues: parsed.error.issues });
@@ -92,7 +110,9 @@ class ModelBajuManagementService implements IModelBajuInterface {
         try {
             const result = await this.modelBajuRepository.createModelBaju(parsed.data as createModelBajuRequest);
 
-            // Log success dengan audit trail
+            // ✅ Invalidate list caches
+            CacheService.deletePattern('model_baju:all');
+
             logAudit("MODEL_BAJU_CREATED", {
                 id: result.id,
                 nama_model: result.nama
@@ -105,12 +125,10 @@ class ModelBajuManagementService implements IModelBajuInterface {
 
             return result;
         } catch (err: any) {
-            // Re-throw HttpException as-is (preserve status code)
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Handle Prisma specific errors
             if (err?.name === "PrismaClientValidationError" || err?.code === "P2021" || err?.code === "P2002") {
                 logger.error("Prisma validation error creating model baju", {
                     message: err?.message,
@@ -119,7 +137,6 @@ class ModelBajuManagementService implements IModelBajuInterface {
                 throw new HttpException(400, err?.message ?? "Invalid data provided");
             }
 
-            // Unexpected errors jadi 500
             logger.error("Unexpected error creating model baju", {
                 message: err?.message,
                 name: err?.name,
@@ -130,7 +147,6 @@ class ModelBajuManagementService implements IModelBajuInterface {
     }
 
     async updateModelBaju(id: number, data: updateModelBajuRequest): Promise<modelBajuResponse> {
-        // Validate with Zod schema
         const parsed = validatorModelBaju.updateSchema.safeParse(data);
         if (!parsed.success) {
             logger.warn("updateModelBaju validation failed", { issues: parsed.error.issues });
@@ -148,23 +164,24 @@ class ModelBajuManagementService implements IModelBajuInterface {
                 throw new HttpException(404, "Model baju not found");
             }
 
+            // ✅ Invalidate caches
+            CacheService.delete(`model_baju:${id}`);
+            CacheService.deletePattern('model_baju:all');
+
             logAudit("MODEL_BAJU_UPDATED", { id });
             logInfo("Model baju updated successfully", { id });
 
             return result;
         } catch (err: any) {
-            // Re-throw HttpException as-is
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Handle Prisma errors
             if (err?.code === "P2025") {
                 logger.warn("Model baju not found for update", { id });
                 throw new HttpException(404, "Model baju not found");
             }
 
-            // Unexpected errors
             logger.error("Unexpected error updating model baju", {
                 id,
                 message: err?.message,
@@ -183,23 +200,24 @@ class ModelBajuManagementService implements IModelBajuInterface {
                 throw new HttpException(404, "Model baju not found");
             }
 
+            // ✅ Invalidate caches
+            CacheService.delete(`model_baju:${id}`);
+            CacheService.deletePattern('model_baju:all');
+
             logAudit("MODEL_BAJU_DELETED", { id });
             logInfo("Model baju deleted successfully", { id });
 
             return result;
         } catch (err: any) {
-            // Re-throw HttpException as-is
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Handle Prisma errors
             if (err?.code === "P2025") {
                 logger.warn("Model baju not found for deletion", { id });
                 throw new HttpException(404, "Model baju not found");
             }
 
-            // Unexpected errors
             logger.error("Unexpected error deleting model baju", {
                 id,
                 message: err?.message,
@@ -218,23 +236,24 @@ class ModelBajuManagementService implements IModelBajuInterface {
                 throw new HttpException(404, "Model baju not found");
             }
 
+            // ✅ Invalidate caches
+            CacheService.delete(`model_baju:${id}`);
+            CacheService.deletePattern('model_baju:all');
+
             logAudit("MODEL_BAJU_SOFT_DELETED", { id });
             logInfo("Model baju soft deleted successfully", { id });
 
             return result;
         } catch (err: any) {
-            // Re-throw HttpException as-is
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Handle Prisma errors
             if (err?.code === "P2025") {
                 logger.warn("Model baju not found for soft deletion", { id });
                 throw new HttpException(404, "Model baju not found");
             }
 
-            // Unexpected errors
             logger.error("Unexpected error soft deleting model baju", {
                 id,
                 message: err?.message,

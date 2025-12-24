@@ -1,6 +1,6 @@
 import logger, { logInfo, logError, logWarn, logAudit } from "../../utils/logger.js";
 import HttpException from "../../utils/HttpExecption.js";
-import validatorCustomOCLASSrder from "../../middleware/validaator/custom_order.validator.js";
+import validatorCustomOrder from "../../middleware/validaator/custom_order.validator.js";
 import type {
     createCustomOrderRequest,
     updateCustomOrderRequest,
@@ -15,6 +15,7 @@ import type {
 import type { Requester } from "../../interfaces/auth.interface.js";
 import MailerService from "../mailer.service.js";
 import { CustomOrderManagementRepository } from "../../repository/admin/custom_order.management.repository.js";
+import CacheService, { CACHE_TTL, CACHE_KEY } from "../cache.service.js";
 
 class CustomOrderManagement implements ICustomOrderManagementInterface {
     private customOrderManagementRepo = new CustomOrderManagementRepository();
@@ -61,6 +62,10 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
         try {
             const result = await this.customOrderManagementRepo.createCustomOrder(parsed.data as createCustomOrderRequest);
 
+            // ✅ Invalidate related caches after create
+            CacheService.deletePattern(`custom_orders:user:${result.user_id}`);
+            CacheService.deletePattern('custom_orders:all');
+
             // Log success dengan audit trail
             logAudit("CUSTOM_ORDER_CREATED", {
                 order_id: result.id,
@@ -81,11 +86,10 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
                 user_id: result.user_id
             });
 
-            // Send email notification to admin (moved to MailerService)
+            // Send email notification to admin
             try {
                 await MailerService.sendCustomOrderNotification(result.id, result.unique_id);
             } catch (emailErr: any) {
-                // Log error tapi tidak throw, agar pembuatan order tetap berhasil
                 logError("Failed to send notification email to admin", {
                     order_id: result.id,
                     error: emailErr?.message
@@ -94,12 +98,10 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
 
             return result;
         } catch (err: any) {
-            // Re-throw HttpException as-is (preserve status code)
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Handle Prisma specific errors
             if (err?.name === "PrismaClientValidationError" || err?.code === "P2021" || err?.code === "P2002") {
                 logger.error("Prisma validation error creating custom order", {
                     message: err?.message,
@@ -108,7 +110,6 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
                 throw new HttpException(400, err?.message ?? "Invalid data provided");
             }
 
-            // Unexpected errors jadi 500
             logger.error("Unexpected error creating custom order", {
                 message: err?.message,
                 name: err?.name,
@@ -119,7 +120,6 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
     }
 
     async updateCustomOrder(id: number, data: updateCustomOrderRequest): Promise<customOrderResponse> {
-        // Validate with Zod schema
         const parsed = validatorCustomOrder.updateSchema.safeParse(data);
         if (!parsed.success) {
             logger.warn("updateCustomOrder validation failed", { issues: parsed.error.issues });
@@ -132,21 +132,23 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
         try {
             const result = await this.customOrderManagementRepo.updateCustomOrder(id, parsed.data as updateCustomOrderRequest);
 
+            // ✅ Invalidate specific order and related caches
+            CacheService.delete(CACHE_KEY.CUSTOM_ORDER(id));
+            CacheService.deletePattern(`custom_orders:user:${result.user_id}`);
+            CacheService.deletePattern('custom_orders:all');
+
             logInfo("Custom order updated successfully", { order_id: id });
             return result;
         } catch (err: any) {
-            // Re-throw HttpException as-is
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Handle Prisma errors
             if (err?.code === "P2025") {
                 logger.warn("Custom order not found for update", { id });
                 throw new HttpException(404, "Custom order not found");
             }
 
-            // Unexpected errors
             logger.error("Unexpected error updating custom order", {
                 id,
                 message: err?.message,
@@ -167,6 +169,18 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
         requester?: Requester
     ): Promise<customOrderResponse[]> {
         try {
+            // ✅ Generate cache key based on params and requester
+            const cacheKey = `custom_orders:all:${JSON.stringify(params)}:${requester?.id || 'public'}`;
+            const cached = CacheService.get<customOrderResponse[]>(cacheKey);
+            
+            if (cached) {
+                logInfo("Custom orders retrieved from cache", { 
+                    count: cached.length,
+                    requester_id: requester?.id 
+                });
+                return cached;
+            }
+
             const where: any = {};
 
             // Search filter
@@ -201,7 +215,10 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
                 orderBy: { [sortBy]: sortOrder } as any
             });
 
-            logInfo("Custom orders retrieved successfully", {
+            // ✅ Cache the result for 2 minutes (frequently updated)
+            CacheService.set(cacheKey, orders, CACHE_TTL.FREQUENT.CUSTOM_ORDERS_LIST);
+
+            logInfo("Custom orders retrieved from database and cached", {
                 count: orders.length,
                 page,
                 limit
@@ -209,12 +226,10 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
 
             return orders;
         } catch (err: any) {
-            // Re-throw HttpException as-is
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Unexpected errors
             logger.error("Unexpected error fetching custom orders", {
                 message: err?.message,
                 stack: err?.stack,
@@ -226,23 +241,32 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
 
     async getCustomOrderById(id: number): Promise<customOrderResponse> {
         try {
+            // ✅ Try cache first
+            const cacheKey = CACHE_KEY.CUSTOM_ORDER(id);
+            const cached = CacheService.get<customOrderResponse>(cacheKey);
+            
+            if (cached) {
+                logInfo("Custom order retrieved from cache", { order_id: id });
+                return cached;
+            }
+
             const order = await this.customOrderManagementRepo.getCustomOrderById(id);
 
-            // Check if order exists
             if (!order) {
                 logger.warn("Custom order not found", { id });
                 throw new HttpException(404, "Custom order not found");
             }
 
-            logInfo("Custom order retrieved successfully", { order_id: id });
+            // ✅ Cache for 2 minutes
+            CacheService.set(cacheKey, order, CACHE_TTL.FREQUENT.CUSTOM_ORDER_DETAIL);
+
+            logInfo("Custom order retrieved from database and cached", { order_id: id });
             return order;
         } catch (err: any) {
-            // Re-throw HttpException as-is (preserve status code)
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Unexpected errors
             logger.error("Unexpected error fetching custom order by id", {
                 id,
                 message: err?.message,
@@ -256,23 +280,25 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
         try {
             const result = await this.customOrderManagementRepo.deleteCustomOrder(id);
 
+            // ✅ Invalidate caches
+            CacheService.delete(CACHE_KEY.CUSTOM_ORDER(id));
+            CacheService.deletePattern(`custom_orders:user:${result.user_id}`);
+            CacheService.deletePattern('custom_orders:all');
+
             logAudit("CUSTOM_ORDER_DELETED", { order_id: id });
             logInfo("Custom order deleted successfully", { order_id: id });
 
             return result;
         } catch (err: any) {
-            // Re-throw HttpException as-is
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Handle Prisma errors
             if (err?.code === "P2025") {
                 logger.warn("Custom order not found for deletion", { id });
                 throw new HttpException(404, "Custom order not found");
             }
 
-            // Unexpected errors
             logger.error("Unexpected error deleting custom order", {
                 id,
                 message: err?.message,
@@ -286,23 +312,25 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
         try {
             const result = await this.customOrderManagementRepo.softDeleteCustomOrder(id);
 
+            // ✅ Invalidate caches
+            CacheService.delete(CACHE_KEY.CUSTOM_ORDER(id));
+            CacheService.deletePattern(`custom_orders:user:${result.user_id}`);
+            CacheService.deletePattern('custom_orders:all');
+
             logAudit("CUSTOM_ORDER_SOFT_DELETED", { order_id: id });
             logInfo("Custom order soft deleted successfully", { order_id: id });
 
             return result;
         } catch (err: any) {
-            // Re-throw HttpException as-is
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Handle Prisma errors
             if (err?.code === "P2025") {
                 logger.warn("Custom order not found for soft deletion", { id });
                 throw new HttpException(404, "Custom order not found");
             }
 
-            // Unexpected errors
             logger.error("Unexpected error soft deleting custom order", {
                 id,
                 message: err?.message,
@@ -312,10 +340,14 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
         }
     }
 
-
     async terimaCustomOrder(id: number, data: terimaCustomOrderRequest): Promise<customOrderResponse> {
         try {
             const result = await this.customOrderManagementRepo.terimaCustomOrder(id, data);
+
+            // ✅ Invalidate caches (order status changed)
+            CacheService.delete(CACHE_KEY.CUSTOM_ORDER(id));
+            CacheService.deletePattern(`custom_orders:user:${result.user_id}`);
+            CacheService.deletePattern('custom_orders:all');
 
             logAudit("CUSTOM_ORDER_ACCEPTED", {
                 order_id: id,
@@ -328,18 +360,15 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
 
             return result;
         } catch (err: any) {
-            // Re-throw HttpException as-is
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Handle Prisma errors
             if (err?.code === "P2025") {
                 logger.warn("Custom order not found for acceptance", { id });
                 throw new HttpException(404, "Custom order not found");
             }
 
-            // Unexpected errors
             logger.error("Unexpected error accepting custom order", {
                 id,
                 admin_id: data.admin_id,
@@ -351,7 +380,6 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
     }
 
     async tolakCustomOrder(id: number, data: tolakCustomOrderRequest): Promise<customOrderResponse> {
-        // Validate with Zod schema
         const parsed = validatorCustomOrder.tolakSchema.safeParse(data);
         if (!parsed.success) {
             logger.warn("tolakCustomOrder validation failed", { issues: parsed.error.issues });
@@ -363,6 +391,11 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
 
         try {
             const result = await this.customOrderManagementRepo.tolakCustomOrder(id, parsed.data);
+
+            // ✅ Invalidate caches
+            CacheService.delete(CACHE_KEY.CUSTOM_ORDER(id));
+            CacheService.deletePattern(`custom_orders:user:${result.user_id}`);
+            CacheService.deletePattern('custom_orders:all');
 
             logAudit("CUSTOM_ORDER_REJECTED", {
                 order_id: id,
@@ -376,18 +409,15 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
 
             return result;
         } catch (err: any) {
-            // Re-throw HttpException as-is
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Handle Prisma errors
             if (err?.code === "P2025") {
                 logger.warn("Custom order not found for rejection", { id });
                 throw new HttpException(404, "Custom order not found");
             }
 
-            // Unexpected errors
             logger.error("Unexpected error rejecting custom order", {
                 id,
                 admin_id: parsed.data.admin_id,
@@ -399,7 +429,6 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
     }
 
     async dealNegosiasi(id: number, data: dealNegosiasiRequest): Promise<customOrderResponse> {
-        // Validate with Zod schema
         const parsed = validatorCustomOrder.dealNegosiasiSchema.safeParse(data);
         if (!parsed.success) {
             logger.warn("dealNegosiasi validation failed", { issues: parsed.error.issues });
@@ -411,6 +440,11 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
 
         try {
             const result = await this.customOrderManagementRepo.dealNegosiasi(id, parsed.data);
+
+            // ✅ Invalidate caches
+            CacheService.delete(CACHE_KEY.CUSTOM_ORDER(id));
+            CacheService.deletePattern(`custom_orders:user:${result.user_id}`);
+            CacheService.deletePattern('custom_orders:all');
 
             logAudit("CUSTOM_ORDER_NEGOTIATION_DEAL", {
                 order_id: id,
@@ -425,18 +459,15 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
 
             return result;
         } catch (err: any) {
-            // Re-throw HttpException as-is
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Handle Prisma errors
             if (err?.code === "P2025") {
                 logger.warn("Custom order not found for negotiation", { id });
                 throw new HttpException(404, "Custom order not found");
             }
 
-            // Unexpected errors
             logger.error("Unexpected error dealing negotiation", {
                 id,
                 admin_id: parsed.data.admin_id,
@@ -448,7 +479,6 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
     }
 
     async batalPemesanan(id: number, data: batalPemesananRequest): Promise<customOrderResponse> {
-        // Validate with Zod schema
         const parsed = validatorCustomOrder.batalPemesananSchema.safeParse(data);
         if (!parsed.success) {
             logger.warn("batalPemesanan validation failed", { issues: parsed.error.issues });
@@ -460,6 +490,11 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
 
         try {
             const result = await this.customOrderManagementRepo.batalPemesanan(id, parsed.data);
+
+            // ✅ Invalidate caches
+            CacheService.delete(CACHE_KEY.CUSTOM_ORDER(id));
+            CacheService.deletePattern(`custom_orders:user:${result.user_id}`);
+            CacheService.deletePattern('custom_orders:all');
 
             logAudit("CUSTOM_ORDER_CANCELLED", {
                 order_id: id,
@@ -473,18 +508,15 @@ class CustomOrderManagement implements ICustomOrderManagementInterface {
 
             return result;
         } catch (err: any) {
-            // Re-throw HttpException as-is
             if (err instanceof HttpException) {
                 throw err;
             }
 
-            // Handle Prisma errors
             if (err?.code === "P2025") {
                 logger.warn("Custom order not found for cancellation", { id });
                 throw new HttpException(404, "Custom order not found");
             }
 
-            // Unexpected errors
             logger.error("Unexpected error cancelling custom order", {
                 id,
                 admin_id: parsed.data.admin_id,

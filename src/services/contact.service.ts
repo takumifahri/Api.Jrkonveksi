@@ -13,6 +13,7 @@ import { prisma } from '../config/prisma.config.js';
 import Joi from 'joi';
 import { id } from 'zod/locales';
 import { ContactRepository } from '../repository/contact.repository.js';
+import CacheService, { CACHE_TTL } from './cache.service.js';
 
 
 class ContactService implements IContactService {
@@ -77,6 +78,10 @@ class ContactService implements IContactService {
                 title: 'Contact Form Submission',
                 Message: message
             });
+
+            // ✅ Invalidate contacts list cache after new submission
+            CacheService.delete('contacts:all');
+
             logger.info(`ContactService - submitContactForm: New contact form submitted by ${name} (${email})`);
             return { success: true, message: 'Contact form submitted successfully' };
         } catch (error) {
@@ -87,6 +92,17 @@ class ContactService implements IContactService {
 
     async getAllContacts(): Promise<ResponseContact[]> {
         try {
+            // ✅ Try cache first
+            const cacheKey = 'contacts:all';
+            const cached = CacheService.get<ResponseContact[]>(cacheKey);
+            
+            if (cached) {
+                logger.info('ContactService - getAllContacts: Retrieved from cache', { 
+                    count: cached.length 
+                });
+                return cached;
+            }
+
             const contacts = await this.contactRepository.getAllContacts();
             
             // ✅ Return empty array jika tidak ada data (bukan error)
@@ -104,7 +120,10 @@ class ContactService implements IContactService {
                 response: contact.response
             }));
 
-            logger.info(`ContactService - getAllContacts: Retrieved ${mappedContacts.length} contacts`);
+            // ✅ Cache for 5 minutes (moderately updated)
+            CacheService.set(cacheKey, mappedContacts, CACHE_TTL.FREQUENT.USER_PROFILE);
+
+            logger.info(`ContactService - getAllContacts: Retrieved ${mappedContacts.length} contacts from database and cached`);
             return mappedContacts;
         } catch (error) {
             logger.error(`ContactService - getAllContacts: ${error}`);
@@ -114,6 +133,15 @@ class ContactService implements IContactService {
 
     async getIdContact(contactId: number): Promise<ResponseContact> {
         try {
+            // ✅ Try cache first
+            const cacheKey = `contact:${contactId}`;
+            const cached = CacheService.get<ResponseContact>(cacheKey);
+            
+            if (cached) {
+                logger.info(`ContactService - getIdContact: Retrieved contact ID ${contactId} from cache`);
+                return cached;
+            }
+
             const contact = await this.contactRepository.getContactById(contactId);
             
             // ✅ Throw 404 jika data tidak ditemukan
@@ -127,9 +155,7 @@ class ContactService implements IContactService {
                 include: { user: true }
             });
 
-            logger.info(`ContactService - getIdContact: Retrieved contact ID ${contactId} with ${getReplyContact.length} replies`);
-
-            return {
+            const result: ResponseContact = {
                 id: contact.id,
                 email: contact.email,
                 phone: contact.phone,
@@ -137,6 +163,12 @@ class ContactService implements IContactService {
                 message: contact.Message,
                 reply: getReplyContact
             };
+
+            // ✅ Cache for 3 minutes
+            CacheService.set(cacheKey, result, CACHE_TTL.FREQUENT.CUSTOM_ORDERS_LIST);
+
+            logger.info(`ContactService - getIdContact: Retrieved contact ID ${contactId} with ${getReplyContact.length} replies from database and cached`);
+            return result;
         } catch (error) {
             // ✅ Re-throw HttpException as-is (preserve status code)
             if (error instanceof HttpException) {
@@ -181,6 +213,10 @@ class ContactService implements IContactService {
                 replyMessage,
                 adminUser.id
             );
+
+            // ✅ Invalidate caches (contact has new reply)
+            CacheService.delete(`contact:${contactId}`);
+            CacheService.delete('contacts:all');
 
             // Send email notification
             const mailerService = new MailerService();
@@ -228,11 +264,11 @@ class ContactService implements IContactService {
             };
             await mailerService.sendMail(mailOptions);
 
-            logger.info(`ContactService - replyToContact: Reply sent to contact ID ${contactId} by admin ID ${replyBy}`);
+            logger.info(`ContactService - replyToContact: Reply sent to contact ID ${contactId} by admin ID ${replyBy} and cache invalidated`);
 
             return {
                 id: newReply.id,
-                contactId: newReply.contacatId,
+                contactId: newReply.contactId,
                 replyMessage: newReply.Message,
                 replyBy: newReply.RespondenId
             };

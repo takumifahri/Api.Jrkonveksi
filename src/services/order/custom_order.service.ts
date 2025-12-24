@@ -16,6 +16,7 @@ import { CustomOrderRepository } from "../../repository/custom_order.repository.
 import type { Requester } from "../../interfaces/auth.interface.js";
 import MailerService from "../mailer.service.js";
 import { prisma } from "../../config/prisma.config.js";
+import CacheService, { CACHE_TTL, CACHE_KEY } from "../cache.service.js";
 
 export class CustomOrderService implements ICustomOrderInterface {
     private customOrderRepo = new CustomOrderRepository();
@@ -61,6 +62,10 @@ export class CustomOrderService implements ICustomOrderInterface {
 
         try {
             const result = await this.customOrderRepo.ajuanCustomOrder(parsed.data as createCustomOrderRequest);
+
+            // ✅ Invalidate related caches after create
+            CacheService.deletePattern(`custom_orders:user:${result.user_id}`);
+            CacheService.deletePattern('custom_orders:all');
 
             // ✅ Log success dengan audit trail
             logAudit("CUSTOM_ORDER_CREATED", {
@@ -157,6 +162,25 @@ export class CustomOrderService implements ICustomOrderInterface {
             const sortBy = params?.sortBy || "createdAt";
             const sortOrder: "asc" | "desc" = params?.sortOrder || "desc";
 
+            // ✅ Generate cache key
+            const cacheKey = `custom_orders:user:${requester?.id || 'public'}:${JSON.stringify({
+                q: params?.q,
+                page,
+                limit,
+                sortBy,
+                sortOrder
+            })}`;
+            
+            const cached = CacheService.get<customOrderResponse[]>(cacheKey);
+            
+            if (cached) {
+                logInfo("Custom orders retrieved from cache", { 
+                    count: cached.length,
+                    user_id: requester?.id 
+                });
+                return cached;
+            }
+
             const orders = await this.customOrderRepo.findCustomOrder({
                 where,
                 skip,
@@ -164,10 +188,14 @@ export class CustomOrderService implements ICustomOrderInterface {
                 orderBy: { [sortBy]: sortOrder } as any
             });
 
-            logInfo("Custom orders retrieved successfully", {
+            // ✅ Cache for 2 minutes (frequently updated)
+            CacheService.set(cacheKey, orders, CACHE_TTL.FREQUENT.CUSTOM_ORDERS_LIST);
+
+            logInfo("Custom orders retrieved from database and cached", {
                 count: orders.length,
                 page,
-                limit
+                limit,
+                user_id: requester?.id
             });
 
             return orders;
@@ -189,6 +217,15 @@ export class CustomOrderService implements ICustomOrderInterface {
 
     async getCustomOrderById(id: number): Promise<customOrderResponse> {
         try {
+            // ✅ Try cache first
+            const cacheKey = CACHE_KEY.CUSTOM_ORDER(id);
+            const cached = CacheService.get<customOrderResponse>(cacheKey);
+            
+            if (cached) {
+                logInfo("Custom order retrieved from cache", { order_id: id });
+                return cached;
+            }
+
             const order = await this.customOrderRepo.getCustomOrderById(id);
 
             // ✅ Check if order exists
@@ -197,7 +234,10 @@ export class CustomOrderService implements ICustomOrderInterface {
                 throw new HttpException(404, "Custom order not found");
             }
 
-            logInfo("Custom order retrieved successfully", { order_id: id });
+            // ✅ Cache for 2 minutes
+            CacheService.set(cacheKey, order, CACHE_TTL.FREQUENT.CUSTOM_ORDER_DETAIL);
+
+            logInfo("Custom order retrieved from database and cached", { order_id: id });
             return order;
         } catch (err: any) {
             // ✅ Re-throw HttpException as-is (preserve status code)
@@ -214,7 +254,6 @@ export class CustomOrderService implements ICustomOrderInterface {
             throw new HttpException(500, "Failed to retrieve custom order");
         }
     }
-
 }
 
 export default new CustomOrderService();

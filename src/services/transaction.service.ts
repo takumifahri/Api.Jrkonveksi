@@ -14,6 +14,7 @@ import type {
 
 import transactionRepository from "../repository/transaction.repository.js";
 import type { Requester } from "../interfaces/auth.interface.js";
+import CacheService, { CACHE_TTL } from "./cache.service.js";
 
 export class TransactionService implements ITransactionService {
     
@@ -32,6 +33,10 @@ export class TransactionService implements ITransactionService {
 
         try {
             const transaction = await transactionRepository.createTransaction(request);
+
+            // ✅ Invalidate user's transaction caches
+            CacheService.deletePattern(`transactions:user:${request.user_id}`);
+            CacheService.deletePattern('transactions:all');
 
             logAudit("TRANSACTION_CREATED", {
                 transaction_id: transaction.id,
@@ -88,8 +93,21 @@ export class TransactionService implements ITransactionService {
         });
 
         try {
-            // Access control logging
+            // ✅ Generate cache key
             const role = requester?.role ?? "User";
+            const cacheKey = `transactions:${role === "Admin" || role === "Manager" ? 'all' : `user:${requester?.id}`}:${JSON.stringify(params)}`;
+            
+            const cached = CacheService.get<transactionResponse[]>(cacheKey);
+            
+            if (cached) {
+                logInfo("Transactions retrieved from cache", { 
+                    count: cached.length,
+                    requester_id: requester?.id 
+                });
+                return cached;
+            }
+
+            // Access control logging
             if (requester && role !== "Admin" && role !== "Manager") {
                 logInfo("Applied user access control filter", { 
                     user_id: requester.id, 
@@ -103,7 +121,10 @@ export class TransactionService implements ITransactionService {
 
             const transactions = await transactionRepository.getAllTransactions(params, requester);
 
-            logInfo("Transactions fetched successfully", {
+            // ✅ Cache for 2 minutes (transactions update frequently)
+            CacheService.set(cacheKey, transactions, CACHE_TTL.FREQUENT.TRANSACTION_DETAIL);
+
+            logInfo("Transactions fetched from database and cached", {
                 requester_id: requester?.id,
                 total_results: transactions.length,
                 page: params?.page || 1,
@@ -125,6 +146,15 @@ export class TransactionService implements ITransactionService {
         logInfo("Fetching transaction by ID", { transaction_id: transactionId });
 
         try {
+            // ✅ Try cache first
+            const cacheKey = `transaction:${transactionId}`;
+            const cached = CacheService.get<transactionResponse>(cacheKey);
+            
+            if (cached) {
+                logInfo("Transaction retrieved from cache", { transaction_id: transactionId });
+                return cached;
+            }
+
             const transaction = await transactionRepository.getTransactionById(transactionId);
 
             if (!transaction) {
@@ -132,7 +162,10 @@ export class TransactionService implements ITransactionService {
                 throw new HttpException(404, "Transaction not found");
             }
 
-            logInfo("Transaction fetched successfully", {
+            // ✅ Cache for 2 minutes
+            CacheService.set(cacheKey, transaction, CACHE_TTL.FREQUENT.TRANSACTION_DETAIL);
+
+            logInfo("Transaction fetched from database and cached", {
                 transaction_id: transactionId,
                 unique_id: transaction.unique_id,
                 status: transaction.status,
@@ -160,6 +193,11 @@ export class TransactionService implements ITransactionService {
             
             const updatedTransaction = await transactionRepository.updateTransaction(transactionId, request);
 
+            // ✅ Invalidate caches
+            CacheService.delete(`transaction:${transactionId}`);
+            CacheService.deletePattern(`transactions:user:${updatedTransaction.user.id}`);
+            CacheService.deletePattern('transactions:all');
+
             logAudit("TRANSACTION_UPDATED", {
                 transaction_id: transactionId,
                 unique_id: updatedTransaction.unique_id,
@@ -178,7 +216,7 @@ export class TransactionService implements ITransactionService {
                 updated_fields: Object.keys(request)
             });
 
-            logInfo("Transaction updated successfully", {
+            logInfo("Transaction updated and cache invalidated", {
                 transaction_id: transactionId,
                 unique_id: updatedTransaction.unique_id
             });
@@ -199,6 +237,11 @@ export class TransactionService implements ITransactionService {
             
             await transactionRepository.deleteTransaction(transactionId);
 
+            // ✅ Invalidate caches
+            CacheService.delete(`transaction:${transactionId}`);
+            CacheService.deletePattern(`transactions:user:${transactionToDelete.user.id}`);
+            CacheService.deletePattern('transactions:all');
+
             logAudit("TRANSACTION_DELETED", {
                 transaction_id: transactionId,
                 unique_id: transactionToDelete.unique_id,
@@ -208,7 +251,7 @@ export class TransactionService implements ITransactionService {
                 deletion_type: "PERMANENT"
             });
 
-            logInfo("Transaction permanently deleted", {
+            logInfo("Transaction permanently deleted and cache invalidated", {
                 transaction_id: transactionId,
                 unique_id: transactionToDelete.unique_id
             });
@@ -225,6 +268,11 @@ export class TransactionService implements ITransactionService {
             const transaction = await transactionRepository.getTransactionById(transactionId);
             await transactionRepository.softDeleteTransaction(transactionId);
 
+            // ✅ Invalidate caches
+            CacheService.delete(`transaction:${transactionId}`);
+            CacheService.deletePattern(`transactions:user:${transaction.user.id}`);
+            CacheService.deletePattern('transactions:all');
+
             logAudit("TRANSACTION_SOFT_DELETED", {
                 transaction_id: transactionId,
                 unique_id: transaction.unique_id,
@@ -234,7 +282,7 @@ export class TransactionService implements ITransactionService {
                 deletion_type: "SOFT"
             });
 
-            logInfo("Transaction soft deleted", {
+            logInfo("Transaction soft deleted and cache invalidated", {
                 transaction_id: transactionId,
                 unique_id: transaction.unique_id
             });
@@ -293,6 +341,11 @@ export class TransactionService implements ITransactionService {
 
             const updatedTransaction = await transactionRepository.bayarPesananan(numericTransactionId, request);
 
+            // ✅ Invalidate caches (status changed)
+            CacheService.delete(`transaction:${numericTransactionId}`);
+            CacheService.deletePattern(`transactions:user:${userId}`);
+            CacheService.deletePattern('transactions:all');
+
             logAudit("PAYMENT_SUBMITTED", {
                 transaction_id: numericTransactionId,
                 unique_id: updatedTransaction.unique_id,
@@ -312,7 +365,7 @@ export class TransactionService implements ITransactionService {
                 status: updatedTransaction.status
             });
 
-            logInfo("Payment submitted successfully", {
+            logInfo("Payment submitted and cache invalidated", {
                 transaction_id: numericTransactionId,
                 unique_id: updatedTransaction.unique_id,
                 user_id: userId,
@@ -347,6 +400,11 @@ export class TransactionService implements ITransactionService {
             
             const updatedTransaction = await transactionRepository.tolakPembayaran(numericTransactionId, request);
 
+            // ✅ Invalidate caches (status changed)
+            CacheService.delete(`transaction:${numericTransactionId}`);
+            CacheService.deletePattern(`transactions:user:${updatedTransaction.user.id}`);
+            CacheService.deletePattern('transactions:all');
+
             logAudit("PAYMENT_REJECTED", {
                 transaction_id: numericTransactionId,
                 unique_id: updatedTransaction.unique_id,
@@ -365,7 +423,7 @@ export class TransactionService implements ITransactionService {
                 rejection_reason: request.alasan_ditolak
             });
 
-            logInfo("Payment rejected successfully", {
+            logInfo("Payment rejected and cache invalidated", {
                 transaction_id: numericTransactionId,
                 unique_id: updatedTransaction.unique_id,
                 admin_id: adminId,
@@ -397,6 +455,17 @@ export class TransactionService implements ITransactionService {
             
             const updatedTransaction = await transactionRepository.terimaPembayaran(numericTransactionId, request);
 
+            // ✅ Invalidate caches (status changed + order status changed)
+            CacheService.delete(`transaction:${numericTransactionId}`);
+            CacheService.deletePattern(`transactions:user:${updatedTransaction.user.id}`);
+            CacheService.deletePattern('transactions:all');
+            
+            // ✅ Invalidate related custom order cache
+            if (updatedTransaction.custom_order) {
+                CacheService.delete(`custom_order:${updatedTransaction.custom_order.id}`);
+                CacheService.deletePattern(`custom_orders:user:${updatedTransaction.user.id}`);
+            }
+
             logAudit("PAYMENT_ACCEPTED", {
                 transaction_id: numericTransactionId,
                 unique_id: updatedTransaction.unique_id,
@@ -416,7 +485,7 @@ export class TransactionService implements ITransactionService {
                 custom_order_status_updated: !!updatedTransaction.custom_order
             });
 
-            logInfo("Payment accepted successfully", {
+            logInfo("Payment accepted and cache invalidated", {
                 transaction_id: numericTransactionId,
                 unique_id: updatedTransaction.unique_id,
                 admin_id: adminId,
@@ -484,6 +553,11 @@ export class TransactionService implements ITransactionService {
 
             const updatedTransaction = await transactionRepository.resendPembayaran(numericTransactionId, request);
 
+            // ✅ Invalidate caches (status changed)
+            CacheService.delete(`transaction:${numericTransactionId}`);
+            CacheService.deletePattern(`transactions:user:${userId}`);
+            CacheService.deletePattern('transactions:all');
+
             logAudit("PAYMENT_RESENT", {
                 transaction_id: numericTransactionId,
                 unique_id: updatedTransaction.unique_id,
@@ -503,7 +577,7 @@ export class TransactionService implements ITransactionService {
                 status: updatedTransaction.status
             });
 
-            logInfo("Payment resent successfully", {
+            logInfo("Payment resent and cache invalidated", {
                 transaction_id: numericTransactionId,
                 unique_id: updatedTransaction.unique_id,
                 user_id: userId,
